@@ -170,13 +170,36 @@ def test_backtest_cli_entrypoint_returns_success(capsys) -> None:
     assert "Backtest completed." in captured.out
 
 
+def test_evaluation_report_cli_entrypoint_returns_success(capsys) -> None:
+    """Ensure the implemented evaluation-report CLI runs end to end."""
+    ingestion = import_module("src.run_data_ingestion")
+    panel = import_module("src.run_panel_assembly")
+    feature_generation = import_module("src.run_feature_generation")
+    signal_generation = import_module("src.run_signal_generation")
+    backtest = import_module("src.run_backtest")
+    evaluation_report = import_module("src.run_evaluation_report")
+
+    assert ingestion.main() == 0
+    capsys.readouterr()
+    assert panel.main() == 0
+    capsys.readouterr()
+    assert feature_generation.main() == 0
+    capsys.readouterr()
+    assert signal_generation.main() == 0
+    capsys.readouterr()
+    assert backtest.main() == 0
+    capsys.readouterr()
+    assert evaluation_report.main() == 0
+    captured = capsys.readouterr()
+    assert "Evaluation reporting completed." in captured.out
+
+
 def test_remaining_stage_cli_scaffolds_return_success(capsys) -> None:
     """Ensure the still-scaffolded downstream CLIs run and describe their stage."""
     cli_expectations = {
         "src.run_modeling_baselines": "Stage: modeling_baselines",
         "src.run_logistic_regression": "Stage: logistic_regression",
         "src.run_random_forest": "Stage: random_forest",
-        "src.run_evaluation_report": "Stage: evaluation_report",
     }
 
     for module_name, expected_text in cli_expectations.items():

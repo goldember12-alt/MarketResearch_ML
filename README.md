@@ -4,13 +4,14 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The data foundation, leakage-safe feature layer, deterministic signal layer, and deterministic monthly backtest baseline are implemented.
+The deterministic baseline workflow is now implemented through evaluation reporting:
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
 - `src.signals` converts the feature panel into deterministic cross-sectional rankings
-- `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, benchmark comparisons, and summary metrics
-- data, feature, signal, and backtest artifacts are written to deterministic output paths
+- `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, and benchmark comparisons
+- `src.evaluation` builds a benchmark-aware summary from the backtest artifacts
+- `src.reporting` writes a human-readable strategy report and appends an experiment-registry record
 
 No benchmark-quality research conclusion, live-trading claim, or out-of-sample ML claim is included.
 
@@ -40,7 +41,7 @@ Supported raw file types:
 - `.csv`
 - `.parquet`
 
-Repo-local deterministic sample inputs are included so ingestion, panel assembly, feature generation, signal generation, and backtesting are runnable now without live connectors.
+Repo-local deterministic sample inputs are included so ingestion, panel assembly, feature generation, signal generation, backtesting, and evaluation reporting are runnable now without live connectors.
 
 ## Implemented Outputs
 
@@ -81,6 +82,11 @@ Backtest artifacts:
 - `outputs/backtests/backtest_summary.json`
 - `outputs/backtests/performance_by_period.csv`
 - `outputs/backtests/risk_metrics_summary.csv`
+
+Reporting artifacts:
+
+- `outputs/reports/strategy_report.md`
+- `outputs/reports/experiment_registry.jsonl`
 
 ## Config Foundation
 
@@ -130,7 +136,14 @@ Backtest-stage rules:
 - `portfolio_returns.parquet.date` is the realized month-end `t+1`
 - transaction costs use a linear one-way turnover model: `turnover * (transaction_cost_bps + slippage_bps) / 10000`
 - the current default cash policy is `redistribute`, so if names are selected they are fully invested equally unless a capped-weight configuration says otherwise
-- if a selected security is missing a realized return on a valid holding period end, the realized return is filled with `0.0` and logged in the QC summary
+- if a selected security is missing a realized return on a valid holding period end, the realized return is filled with `0.0` and logged in QC
+
+Evaluation and reporting rules:
+
+- every generated report is explicitly marked exploratory unless stronger evidence is actually available
+- benchmark comparisons are carried through into the report and experiment registry
+- bias caveats are written directly into the strategy report
+- meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
 
 Important caveat:
 
@@ -168,7 +181,13 @@ Run backtest:
 .\.venv\Scripts\python.exe -m src.run_backtest
 ```
 
-Full deterministic pipeline:
+Run evaluation reporting:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_evaluation_report
+```
+
+Full deterministic baseline pipeline:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_data_ingestion
@@ -176,6 +195,7 @@ Full deterministic pipeline:
 .\.venv\Scripts\python.exe -m src.run_feature_generation
 .\.venv\Scripts\python.exe -m src.run_signal_generation
 .\.venv\Scripts\python.exe -m src.run_backtest
+.\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
 Other stage entrypoints remain scaffold-only:
@@ -184,7 +204,6 @@ Other stage entrypoints remain scaffold-only:
 .\.venv\Scripts\python.exe -m src.run_modeling_baselines
 .\.venv\Scripts\python.exe -m src.run_logistic_regression
 .\.venv\Scripts\python.exe -m src.run_random_forest
-.\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
 Recommended interpreter:
@@ -203,11 +222,12 @@ Manual verification completed on 2026-03-28:
 
 - `.\.venv\Scripts\python.exe -m src.run_signal_generation`
 - `.\.venv\Scripts\python.exe -m src.run_backtest`
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report`
 
 Current automated status on 2026-03-28:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `34 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `38 passed`
 
 ## Best Next Step
 
-Implement evaluation and reporting workflows that consume the backtest artifacts, append benchmark-quality experiment metadata, and separate exploratory runs from canonical reported results.
+Implement chronology-safe modeling baselines and compare them against the deterministic signal benchmark using the now-implemented reporting and experiment-tracking workflow.

@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-- Data-ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, and deterministic monthly backtesting are implemented for the local-file-first workflow
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, and baseline evaluation reporting are implemented for the local-file-first workflow
 
 ## What Is Completed
 
@@ -15,7 +15,7 @@
   - deterministic tie-breaking
   - top-N selection flags
   - signal QC and selection summaries
-- `src.backtest` now includes:
+- `src.backtest` includes:
   - backtest-stage config loading
   - holdings construction from `signal_rankings.parquet`
   - monthly trade-log generation and turnover summaries
@@ -23,54 +23,37 @@
   - turnover-based transaction cost application
   - benchmark alignment for `SPY`, `QQQ`, and `equal_weight_universe`
   - risk metrics, per-period comparison tables, and compact QC reporting
-- `config/backtest.yaml` now also documents the backtest cash-handling policy.
-- `config/paths.yaml` now routes the stage-level performance tables to:
-  - `outputs/backtests/performance_by_period.csv`
-  - `outputs/backtests/risk_metrics_summary.csv`
-- `src/run_backtest.py` now reads:
-  - `outputs/signals/signal_rankings.parquet`
-  - `outputs/data/monthly_panel.parquet`
-  - `outputs/data/benchmarks_monthly.parquet`
-  and writes:
-  - `outputs/backtests/holdings_history.parquet`
-  - `outputs/backtests/trade_log.parquet`
-  - `outputs/backtests/portfolio_returns.parquet`
-  - `outputs/backtests/benchmark_returns.parquet`
-  - `outputs/backtests/backtest_summary.json`
-  - `outputs/backtests/performance_by_period.csv`
-  - `outputs/backtests/risk_metrics_summary.csv`
+- `src.evaluation` now includes structured benchmark-aware evaluation summaries derived from the backtest artifacts.
+- `src.reporting` now includes:
+  - markdown strategy-report rendering
+  - experiment-registry record creation
+  - JSONL append logic for meaningful evaluation-report runs
+- `src/run_evaluation_report.py` now reads the backtest outputs and writes:
+  - `outputs/reports/strategy_report.md`
+  - `outputs/reports/experiment_registry.jsonl`
 
 ## Testing Status
 
-- Focused backtest tests were added for:
-  - holdings construction from deterministic selections
-  - equal-weight and capped-weight allocation behavior
-  - next-period return alignment
-  - trade-log generation and turnover calculation
-  - transaction cost application
-  - benchmark alignment
-  - max drawdown
-  - duplicate-key detection
-  - empty selected-month handling
-- `tests/test_repo_skeleton.py` now runs `src.run_backtest` as an implemented stage.
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `34 passed` on 2026-03-28.
+- Focused reporting tests were added for:
+  - benchmark-aware evaluation summary construction
+  - strategy report rendering
+  - experiment-registry record creation and append behavior
+- `tests/test_repo_skeleton.py` now runs `src.run_evaluation_report` as an implemented stage.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `38 passed` on 2026-03-28.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
 
-- `.\.venv\Scripts\python.exe -m src.run_backtest` completed successfully on 2026-03-28.
-- Resulting backtest artifacts were manually checked:
-  - `holdings_history.parquet`: 50 rows, duplicate `date`-`ticker` keys `0`
-  - `trade_log.parquet`: 14 trade rows
-  - `portfolio_returns.parquet`: 5 realized monthly periods from `2024-02-29` through `2024-06-30`
-  - `benchmark_returns.parquet`: 15 aligned benchmark rows covering `SPY`, `QQQ`, and `equal_weight_universe`
-  - `backtest_summary.json`: holding-period convention, config snapshot, metrics, and QC summary present
-- Current sample-history consequence was manually confirmed:
-  - the first realized backtest period is a cash-only month because the first signal month has no scoreable names and therefore no formed holdings
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report` completed successfully on 2026-03-28.
+- Resulting reporting artifacts were manually checked:
+  - `strategy_report.md`: benchmark context, portfolio metrics, risk controls, caveats, interpretation, and next step present
+  - `experiment_registry.jsonl`: append behavior confirmed and required high-level fields present
+- Previous manual verification for `src.run_backtest` remains valid:
+  - the backtest outputs used by reporting were present and aligned before the report run
 
 ## Immediate Next Step
 
-- Implement `src.evaluation` and `src.reporting` so the backtest artifacts feed benchmark-relative interpretation, experiment logging, and report generation.
+- Implement chronology-safe modeling baselines and compare them against the deterministic signal benchmark using the now-implemented report and experiment-registry workflow.
 
 ## Known Risks / Open Issues
 
@@ -80,6 +63,7 @@
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.
+- Reporting is now implemented, but richer regime diagnostics and attribution are still deferred.
 
 ## Current Output Structure
 
@@ -106,10 +90,10 @@
 - `outputs/backtests/backtest_summary.json`
 - `outputs/backtests/performance_by_period.csv`
 - `outputs/backtests/risk_metrics_summary.csv`
+- `outputs/reports/strategy_report.md`
+- `outputs/reports/experiment_registry.jsonl`
 - `outputs/models/train_predictions.parquet`
 - `outputs/models/test_predictions.parquet`
 - `outputs/models/model_metadata.json`
 - `outputs/models/feature_importance.csv`
-- `outputs/reports/strategy_report.md`
-- `outputs/reports/experiment_registry.jsonl`
 - `outputs/paper_trading/`

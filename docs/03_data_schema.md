@@ -365,6 +365,41 @@ Structure:
 - metrics by series
 - compact QC summary
 
+### `outputs/reports/strategy_report.md`
+
+Current contents:
+
+- run status and timestamp
+- universe, benchmarks, rebalance, and cost assumptions
+- portfolio summary metrics
+- explicit benchmark comparison
+- risk controls
+- bias caveats
+- cautious interpretation
+- next recommended implementation step
+
+### `outputs/reports/experiment_registry.jsonl`
+
+One JSON object per line with at minimum:
+
+- `experiment_id`
+- `run_timestamp`
+- `stage`
+- `purpose`
+- `date_range`
+- `universe_preset`
+- `benchmark_set`
+- `feature_set`
+- `signal_or_model`
+- `portfolio_rules`
+- `rebalance_frequency`
+- `transaction_cost_bps`
+- `artifacts_written`
+- `result_summary`
+- `interpretation`
+- `status`
+- `next_step`
+
 ## QC Artifacts
 
 ### Data-Stage QC
@@ -395,6 +430,13 @@ Backtest QC currently lives inside `outputs/backtests/backtest_summary.json` and
 - realized missing-return policy and count
 - max holdings-plus-cash weight deviation from `1.0`
 - min and max cash weight across rebalances
+
+### Reporting-Stage Outputs
+
+The evaluation-report stage currently writes:
+
+- `outputs/reports/strategy_report.md`
+- `outputs/reports/experiment_registry.jsonl`
 
 ## Change Control
 

@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-Data foundation, leakage-safe feature layer, deterministic signal layer, and deterministic backtest baseline are implemented. The next milestone is evaluation and reporting on top of the backtest artifacts.
+The deterministic baseline workflow is implemented end to end through evaluation reporting. The next milestone is chronology-safe modeling baselines on top of the documented deterministic benchmark.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -64,7 +64,6 @@ Delivered:
 - `outputs/signals/signal_rankings.parquet`
 - `outputs/signals/signal_qc_summary.json`
 - `outputs/signals/signal_selection_summary.csv`
-- focused automated tests for scoring direction, minimum-feature gating, tie-break behavior, and CLI execution
 
 Remaining risks inside this phase:
 
@@ -92,7 +91,6 @@ Delivered:
 - `outputs/backtests/backtest_summary.json`
 - `outputs/backtests/performance_by_period.csv`
 - `outputs/backtests/risk_metrics_summary.csv`
-- focused automated tests for holdings, turnover, alignment, costs, benchmarks, drawdown, duplicate keys, and empty-month handling
 
 Remaining risks inside this phase:
 
@@ -102,15 +100,28 @@ Remaining risks inside this phase:
 
 ## Phase 6: Evaluation And Reporting
 
-Next deliverables:
+Status:
 
-- strategy report generation
-- experiment registry appends
-- formal benchmark-relative diagnostics and interpretation rules
+- implemented baseline
+
+Delivered:
+
+- `src.evaluation.summary` for structured benchmark-aware summaries
+- `src.reporting.markdown` for strategy report rendering
+- `src.reporting.registry` for experiment-registry appends
+- runnable `src.run_evaluation_report`
+- `outputs/reports/strategy_report.md`
+- `outputs/reports/experiment_registry.jsonl`
+
+Remaining work inside this phase:
+
+- regime-aware diagnostics
+- richer benchmark-relative attribution
+- more detailed report sections and formatting
 
 ## Phase 7: Modeling Baselines
 
-Deferred deliverables:
+Next deliverables:
 
 - label construction
 - walk-forward validation datasets

@@ -68,4 +68,4 @@
 
 ## Immediate Next Step
 
-- Implement evaluation and reporting layers that consume the backtest outputs, append experiment metadata, and formalize benchmark-relative interpretation.
+- Use the implemented reporting workflow as the deterministic benchmark reference and move into chronology-safe modeling baselines.

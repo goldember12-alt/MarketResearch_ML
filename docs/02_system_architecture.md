@@ -2,7 +2,7 @@
 
 ## Architectural Goal
 
-The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, and deterministic monthly backtesting.
+The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, and baseline evaluation reporting.
 
 ## Canonical Stage Flow
 
@@ -19,13 +19,13 @@ The system is organized as a stage-based research pipeline with explicit inputs,
 6. `src.backtest`
    Map signal selections to holdings, trades, realized returns, and benchmark-relative metrics.
 7. `src.evaluation`
-   Extend the backtest with diagnostics, period analysis, and formal comparisons.
+   Build a benchmark-aware, caveat-aware summary from the backtest outputs.
 8. `src.reporting`
-   Write reports and experiment logs.
+   Write the human-readable report and append the experiment registry.
 9. `src.models`
    Add chronology-safe baselines only after deterministic baselines exist.
 
-## Implemented Raw-To-Backtest Flow
+## Implemented Raw-To-Report Flow
 
 ### Raw Input Contract
 
@@ -93,7 +93,7 @@ Deterministic sample raw files are included in the repo so the implemented stage
 
 `src.run_backtest` performs:
 
-1. read `outputs/signals/signal_rankings.parquet`, `outputs/data/monthly_panel.parquet`, and `outputs/data/benchmarks_monthly.parquet`
+1. read `signal_rankings`, `monthly_panel`, and `benchmarks_monthly`
 2. validate duplicate keys and deterministic monthly joins
 3. construct top-N holdings snapshots by rebalance month
 4. map month-end decision date `t` to realized return date `t+1`
@@ -101,6 +101,16 @@ Deterministic sample raw files are included in the repo so the implemented stage
 6. apply next-period realized security returns, then subtract configured turnover-based costs
 7. align explicit benchmark returns to the same realized months
 8. write holdings, trades, return series, period comparisons, risk metrics, and a JSON summary
+
+### Evaluation And Reporting Stage
+
+`src.run_evaluation_report` performs:
+
+1. read the backtest summary, return series, per-period table, and risk metrics table
+2. combine them with current signal and backtest config context
+3. build a benchmark-aware exploratory evaluation summary with required caveats
+4. render `outputs/reports/strategy_report.md`
+5. append one record to `outputs/reports/experiment_registry.jsonl`
 
 ## Implemented Module Responsibilities
 
@@ -119,6 +129,9 @@ Deterministic sample raw files are included in the repo so the implemented stage
 | `src.backtest.returns` | next-period return alignment and benchmark joins |
 | `src.backtest.metrics` | cumulative returns and risk metric calculations |
 | `src.backtest.qc` | backtest validation and QC summaries |
+| `src.evaluation.summary` | structured benchmark-aware evaluation summaries |
+| `src.reporting.markdown` | strategy report rendering |
+| `src.reporting.registry` | experiment-record creation and JSONL append |
 
 ## Design Rules In Force
 
@@ -128,13 +141,14 @@ Deterministic sample raw files are included in the repo so the implemented stage
 - Predictive features and downstream signals use only information available through the prior month.
 - Backtest holdings formed at month-end `t` only earn returns recorded at month-end `t+1`.
 - Transaction costs are explicit and config-driven.
+- Reports must include benchmark context and bias caveats.
 - Numeric feature imputation is intentionally not implemented.
 - Point-in-time-safe fundamentals are not claimed; the current lag rule is a bias control, not a complete solution.
 
 ## Immediate Next Boundary
 
-The next critical path is `src.evaluation` and `src.reporting`:
+The next critical path is `src.models`:
 
-- formalize metric interpretation and benchmark-relative diagnostics
-- add experiment logging and strategy-report generation
-- preserve separation between exploratory runs and canonical reported results
+- add chronology-safe deterministic and ML baseline runners
+- compare models against the documented deterministic signal baseline
+- preserve walk-forward, leakage-safe evaluation

@@ -6,7 +6,7 @@ Evaluation must show whether a strategy meaningfully outperforms explicit benchm
 
 ## Required Metrics
 
-The current deterministic backtest writes these metrics:
+The implemented deterministic baseline now writes these metrics:
 
 - cumulative return
 - annualized return
@@ -48,7 +48,7 @@ Current deterministic backtest evaluation tables:
 - `outputs/backtests/risk_metrics_summary.csv`
 - `outputs/backtests/backtest_summary.json`
 
-Later reporting outputs remain separate:
+Current reporting outputs:
 
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
@@ -59,13 +59,15 @@ The current implementation provides:
 
 - full-period portfolio and benchmark summary metrics
 - per-period aligned portfolio and benchmark return tables
+- a benchmark-aware exploratory strategy report
+- experiment-registry append logic for meaningful evaluation-report runs
 
 The following remain deferred:
 
 - subperiod summary by major market regime
 - information ratio and benchmark-relative attribution tables
 - concentration-aware interpretation for the seeded tech-heavy universe
-- automated report generation
+- automated regime-aware report sections
 
 ## Interpretation Standard
 
@@ -74,3 +76,4 @@ The following remain deferred:
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.
+- Current reporting outputs must explicitly remain exploratory unless stronger evidence is actually available.

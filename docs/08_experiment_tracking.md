@@ -2,11 +2,11 @@
 
 ## Canonical Registry
 
-Meaningful experiment runs should append one record per run to:
+Meaningful evaluation-report runs append one record per run to:
 
 - `outputs/reports/experiment_registry.jsonl`
 
-This file is part of the documented contract even though the writer logic is not implemented yet.
+The implemented writer appends a new JSON object line for every successful `src.run_evaluation_report` execution.
 
 ## Minimum Record Fields
 
@@ -27,6 +27,14 @@ This file is part of the documented contract even though the writer logic is not
 - `interpretation`
 - `status`
 - `next_step`
+
+## Current Writer Behavior
+
+- preserves prior history by appending, not overwriting
+- marks the current stage as `evaluation_report`
+- records the deterministic signal baseline and configured feature set
+- records benchmark-aware result summaries drawn from the implemented backtest artifacts
+- stores exploratory interpretations and next-step guidance alongside each run
 
 ## Tracking Rules
 
