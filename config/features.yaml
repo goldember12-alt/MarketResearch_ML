@@ -6,6 +6,7 @@ feature_groups:
   growth: true
   balance_sheet: true
   revisions: false
+  market_cap: true
 
 lookbacks:
   momentum_3m: 3
@@ -13,11 +14,16 @@ lookbacks:
   momentum_12m: 12
   volatility_12m: 12
   beta_12m: 12
+  drawdown_12m: 12
 
 lags:
   default_periods: 1
+  fundamentals_periods: 1
 
 missingness:
   numeric_fill: "none"
   categorical_fill: "missing"
   drop_threshold: 0.5
+
+benchmarks:
+  beta_benchmark: "SPY"

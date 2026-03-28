@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-Data foundation implemented. The next milestone is leakage-safe feature generation on top of the canonical monthly panel.
+Data foundation and leakage-safe feature layer implemented. The next milestone is deterministic signal generation on top of the feature panel.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -26,35 +26,41 @@ Status:
 
 Delivered:
 
-- `src.data` config-driven ingestion modules
-- raw local file contract under `data/raw/market`, `data/raw/benchmarks`, and `data/raw/fundamentals`
+- config-driven `src.data` ingestion modules
+- local raw file contract under `data/raw/market`, `data/raw/benchmarks`, and `data/raw/fundamentals`
 - standardized monthly price, benchmark, and fundamentals artifacts
-- deterministic equal-weight universe benchmark construction
+- deterministic equal-weight benchmark construction
 - canonical `outputs/data/monthly_panel.parquet`
-- dataset QC JSON outputs
-- ticker and date coverage CSV outputs
-- focused automated tests for resampling, returns, duplicate keys, benchmark alignment, panel-grid validation, and fundamentals lag mapping
-
-Remaining risks inside this phase:
-
-- production-grade vendor adapters are not implemented yet
-- point-in-time-safe fundamentals are still unresolved
-- equal-weight benchmark construction is a research baseline, not an investable execution model
+- data QC JSON outputs and coverage CSV outputs
 
 ## Phase 3: Deterministic Feature Layer
 
-Next deliverables:
+Status:
 
-- leakage-safe monthly feature generation from `outputs/data/monthly_panel.parquet`
-- documented lookback windows and lag rules
-- feature QC and missingness summaries
-- updated schema and progress documentation
+- implemented
+
+Delivered:
+
+- `src.features` config loader and feature engineering modules
+- leakage-safe lagged price features
+- lagged market-cap, valuation, profitability, growth, and balance-sheet features
+- `outputs/features/feature_panel.parquet`
+- `outputs/features/feature_qc_summary.json`
+- `outputs/features/feature_missingness_summary.csv`
+- focused automated tests for feature formulas, lag behavior, missingness summaries, and CLI execution
+
+Remaining risks inside this phase:
+
+- short histories naturally leave long-lookback features missing
+- numeric imputation is intentionally not implemented yet
+- fundamentals-derived features still inherit revised-history bias risk
 
 ## Phase 4: Deterministic Signal And Backtest Baseline
 
-Deferred deliverables:
+Next deliverables:
 
 - deterministic ranking logic
+- signal artifact schema
 - portfolio construction
 - monthly backtest outputs
 - benchmark-relative summary metrics

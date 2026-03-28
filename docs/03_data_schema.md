@@ -7,7 +7,7 @@
 - Date convention: normalized calendar month-end
 - Deterministic keys only
 
-The canonical monthly panel is the research table that later feeds feature generation, deterministic baselines, and chronology-safe modeling workflows.
+The canonical monthly panel is the shared upstream table for feature generation, later deterministic signals, and later chronology-safe modeling workflows.
 
 ## Raw Data Contract
 
@@ -22,55 +22,48 @@ Supported raw formats:
 - CSV
 - Parquet
 
-Raw files are immutable inputs. The current repo includes deterministic local sample raw files for pipeline verification. These are implementation fixtures, not a claim of production vendor coverage.
+Raw files are immutable inputs. The current repo includes deterministic local sample raw files for pipeline verification.
 
 ## Standardization Rules
 
 ### Monthly Date Convention
 
 - All processed monthly dates are normalized to calendar month-end.
-- If raw market or benchmark data are daily, the pipeline keeps the last available observation within each month for each identifier.
-- If raw data are already monthly, the same month-end normalization is still applied.
+- If raw market or benchmark data are daily, the last available observation within the month is used.
 
 ### `adjusted_close`
 
-- The configured selection priority lives in `config/data.yaml`.
+- The selection priority lives in `config/data.yaml`.
 - Current priority: `adjusted_close`, `adj_close`, `adjclose`, then `close`.
-- The selected column is standardized to the canonical processed field `adjusted_close`.
 
 ### `monthly_return`
 
 - Formula: `adjusted_close_t / adjusted_close_t-1 - 1`
-- Computed separately within each `ticker`.
-- The first available month per identifier is `NaN` because no prior monthly close exists.
+- Computed separately within each identifier.
+- The first available month per identifier is `NaN`.
 
 ### `benchmark_return`
 
-- Benchmarks use the same month-over-month return formula as securities.
-- `benchmarks_monthly.parquet` stores monthly returns for `SPY`, `QQQ`, and `equal_weight_universe`.
-- `monthly_panel.parquet` currently aligns the configured primary benchmark `SPY` by `date` and stores that aligned value as `benchmark_return`.
+- Benchmarks use the same month-over-month formula.
+- `benchmarks_monthly.parquet` stores `SPY`, `QQQ`, and `equal_weight_universe`.
+- `monthly_panel.parquet` currently aligns the configured primary benchmark `SPY` by `date` and stores it as `benchmark_return`.
 
 ### Equal-Weight Universe Benchmark
 
 - Identifier: `equal_weight_universe`
-- Monthly return: simple arithmetic average of available universe constituent `monthly_return` values on each month-end
+- Monthly return: simple arithmetic average of available universe constituent `monthly_return` values
 - Adjusted close: chained synthetic series starting from `100.0`
-
-Current caution:
-
-- This is a convenient baseline benchmark, not a fully investable implementation with turnover, costs, or constituent-entry rules.
 
 ### Fundamentals Mapping Rule
 
-- Raw fundamentals observations are normalized to a monthly `fundamentals_source_date`.
-- A conservative `2`-month effective lag is applied:
-  `fundamentals_effective_date = month_end(fundamentals_source_date) + 2 month-ends`
-- The monthly fundamentals table is built by ticker with backward as-of mapping from the effective date onto the monthly panel calendar.
-- Configured max staleness is `12` months. If the latest available fundamentals observation is older than that threshold, the mapped fundamentals fields are nulled out.
+- Raw fundamentals are normalized to `fundamentals_source_date`
+- A conservative `2`-month effective lag is applied
+- Monthly fundamentals are mapped by ticker using backward as-of logic from `fundamentals_effective_date`
+- Configured max staleness is `12` months; older mapped observations are nulled out
 
 Important caveat:
 
-- This lag rule reduces obvious look-ahead risk, but it is not a true point-in-time solution. Revised-history bias remains possible until a point-in-time fundamentals source is added.
+- This lag rule reduces obvious look-ahead risk, but it is not a true point-in-time solution. Revised-history bias remains possible.
 
 ## Canonical Artifacts
 
@@ -85,10 +78,10 @@ Columns:
 | Column | Type | Notes |
 | --- | --- | --- |
 | `ticker` | string | canonical security identifier |
-| `date` | timestamp | calendar month-end observation date |
+| `date` | timestamp | calendar month-end |
 | `adjusted_close` | float | standardized adjusted close |
 | `volume` | float or int | last observed volume in the month when available |
-| `monthly_return` | float | month-over-month total return from `adjusted_close` |
+| `monthly_return` | float | month-over-month return |
 
 ### `outputs/data/benchmarks_monthly.parquet`
 
@@ -101,10 +94,10 @@ Columns:
 | Column | Type | Notes |
 | --- | --- | --- |
 | `benchmark_ticker` | string | `SPY`, `QQQ`, or `equal_weight_universe` |
-| `date` | timestamp | calendar month-end observation date |
+| `date` | timestamp | calendar month-end |
 | `adjusted_close` | float | explicit or derived benchmark close series |
-| `volume` | float or int | available for explicit benchmarks, null for derived benchmark |
-| `monthly_return` | float | benchmark month-over-month return |
+| `volume` | float or int | available for explicit benchmarks |
+| `monthly_return` | float | month-over-month benchmark return |
 
 ### `outputs/data/fundamentals_monthly.parquet`
 
@@ -118,23 +111,23 @@ Columns:
 | --- | --- | --- |
 | `ticker` | string | canonical security identifier |
 | `date` | timestamp | monthly mapped observation date |
-| `fundamentals_source_date` | timestamp | normalized source observation month |
-| `fundamentals_effective_date` | timestamp | source date plus configured lag |
+| `fundamentals_source_date` | timestamp | normalized source month |
+| `fundamentals_effective_date` | timestamp | source month plus configured lag |
 | `sector` | string | classification field |
 | `industry` | string | classification field |
 | `market_cap` | float | mapped market capitalization |
-| `pe_ratio` | float | valuation metric when available |
-| `price_to_sales` | float | valuation metric when available |
-| `price_to_book` | float | valuation metric when available |
-| `ev_to_ebitda` | float | valuation metric when available |
-| `gross_margin` | float | profitability metric when available |
-| `operating_margin` | float | profitability metric when available |
-| `roe` | float | profitability metric when available |
-| `roa` | float | profitability metric when available |
-| `revenue_growth` | float | growth metric when available |
-| `eps_growth` | float | growth metric when available |
-| `debt_to_equity` | float | balance-sheet metric when available |
-| `current_ratio` | float | balance-sheet metric when available |
+| `pe_ratio` | float | valuation metric |
+| `price_to_sales` | float | valuation metric |
+| `price_to_book` | float | valuation metric |
+| `ev_to_ebitda` | float | valuation metric |
+| `gross_margin` | float | profitability metric |
+| `operating_margin` | float | profitability metric |
+| `roe` | float | profitability metric |
+| `roa` | float | profitability metric |
+| `revenue_growth` | float | growth metric |
+| `eps_growth` | float | growth metric |
+| `debt_to_equity` | float | balance-sheet metric |
+| `current_ratio` | float | balance-sheet metric |
 
 ### `outputs/data/monthly_panel.parquet`
 
@@ -142,68 +135,122 @@ Primary key:
 
 - `ticker`, `date`
 
-Required implemented columns:
+Implemented columns:
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `ticker` | string | analytic unit key |
-| `date` | timestamp | calendar month-end observation key |
+| `date` | timestamp | monthly observation key |
 | `adjusted_close` | float | inherited from prices table |
 | `monthly_return` | float | security month-over-month return |
-| `benchmark_ticker` | string | current configured primary benchmark id |
+| `benchmark_ticker` | string | current primary benchmark id |
 | `benchmark_return` | float | aligned primary benchmark return |
 | `sector` | string | classification field |
 | `industry` | string | classification field |
-| `market_cap` | float | lagged mapped market capitalization |
-| valuation metrics | float columns | currently `pe_ratio`, `price_to_sales`, `price_to_book`, `ev_to_ebitda` |
-| profitability metrics | float columns | currently `gross_margin`, `operating_margin`, `roe`, `roa` |
-| growth metrics | float columns | currently `revenue_growth`, `eps_growth` |
-| balance-sheet metrics | float columns | currently `debt_to_equity`, `current_ratio` |
-| `fundamentals_source_date` | timestamp | documented monthly fundamentals source mapping |
-| `fundamentals_effective_date` | timestamp | documented effective date used in the merge |
-| `volume` | float or int | inherited monthly volume when available |
+| `market_cap` | float | lagged mapped market cap |
+| `pe_ratio` | float | valuation metric |
+| `price_to_sales` | float | valuation metric |
+| `price_to_book` | float | valuation metric |
+| `ev_to_ebitda` | float | valuation metric |
+| `gross_margin` | float | profitability metric |
+| `operating_margin` | float | profitability metric |
+| `roe` | float | profitability metric |
+| `roa` | float | profitability metric |
+| `revenue_growth` | float | growth metric |
+| `eps_growth` | float | growth metric |
+| `debt_to_equity` | float | balance-sheet metric |
+| `current_ratio` | float | balance-sheet metric |
+| `fundamentals_source_date` | timestamp | source mapping metadata |
+| `fundamentals_effective_date` | timestamp | effective-date mapping metadata |
+| `volume` | float or int | inherited monthly volume |
 
-Panel construction rule:
+### `outputs/features/feature_panel.parquet`
 
-- The panel is built on the full universe-by-month grid derived from the union of processed price dates and primary benchmark dates. Missingness remains visible in the panel rather than being silently dropped.
+Primary key:
+
+- `ticker`, `date`
+
+Metadata columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ticker` | string | analytic unit key |
+| `date` | timestamp | feature observation month |
+| `benchmark_ticker` | string | benchmark id used for benchmark-relative features |
+| `sector` | string | metadata only, not a predictive return target |
+| `industry` | string | metadata only |
+| `fundamentals_source_date` | timestamp | mapped fundamentals source month |
+| `fundamentals_effective_date` | timestamp | mapped fundamentals effective month |
+
+Implemented feature columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ret_1m_lag1` | float | prior month return |
+| `mom_3m` | float | compounded return over prior 3 months excluding current month |
+| `mom_6m` | float | compounded return over prior 6 months excluding current month |
+| `mom_12m` | float | compounded return over prior 12 months excluding current month |
+| `drawdown_12m` | float | prior close divided by trailing 12-month high minus 1 |
+| `vol_12m` | float | rolling 12-month standard deviation of lagged monthly returns |
+| `beta_12m_spy` | float | rolling 12-month beta versus lagged `SPY` returns |
+| `adjusted_close_lag1` | float | prior month adjusted close |
+| `benchmark_return_lag1` | float | prior month primary benchmark return |
+| `market_cap_lag1` | float | prior month mapped market cap |
+| `pe_ratio_lag1` | float | prior month valuation ratio |
+| `price_to_sales_lag1` | float | prior month valuation ratio |
+| `price_to_book_lag1` | float | prior month valuation ratio |
+| `ev_to_ebitda_lag1` | float | prior month valuation ratio |
+| `gross_margin_lag1` | float | prior month profitability metric |
+| `operating_margin_lag1` | float | prior month profitability metric |
+| `roe_lag1` | float | prior month profitability metric |
+| `roa_lag1` | float | prior month profitability metric |
+| `revenue_growth_lag1` | float | prior month growth metric |
+| `eps_growth_lag1` | float | prior month growth metric |
+| `debt_to_equity_lag1` | float | prior month balance-sheet metric |
+| `current_ratio_lag1` | float | prior month balance-sheet metric |
+
+Feature rules:
+
+- Predictive features use only information available through `t-1`
+- Fundamental metrics are shifted one additional month before inclusion in the feature panel
+- Numeric missingness is preserved rather than imputed
 
 ## QC And Coverage Artifacts
 
-### Dataset QC JSON
+### Data-Stage QC
 
 - `outputs/data/prices_qc_summary.json`
 - `outputs/data/fundamentals_qc_summary.json`
 - `outputs/data/benchmarks_qc_summary.json`
 - `outputs/data/panel_qc_summary.json`
-
-Current summary content includes:
-
-- row count
-- column count
-- column list
-- unique identifier count
-- min and max date
-- duplicate key count
-- missing count by column
-
-### Coverage CSV
-
 - `outputs/data/ticker_coverage_summary.csv`
 - `outputs/data/date_coverage_summary.csv`
 
-These make per-ticker and per-date coverage, missingness, and panel completeness easy to inspect outside of code.
+### Feature-Stage QC
 
-## Downstream Contract
+- `outputs/features/feature_qc_summary.json`
+- `outputs/features/feature_missingness_summary.csv`
 
-The implemented monthly panel is the required upstream input for:
+Feature QC currently includes:
 
-- `outputs/features/feature_panel.parquet`
-- later signal generation
-- later benchmark-relative backtesting
-- later chronology-safe modeling datasets
+- row count
+- feature column count
+- feature group membership
+- duplicate key count
+- min and max date
+- total missing feature-cell count
+- missing feature cells by date
+
+Feature missingness CSV currently includes:
+
+- feature name
+- feature group
+- missing count
+- non-missing count
+- missing ratio
+- first valid date
 
 ## Change Control
 
-- All joins must remain explicit on documented keys.
-- Schema changes require synchronized updates to code, tests, docs, and progress files.
-- Do not treat the current lagged fundamentals mapping as proof of point-in-time safety.
+- All schema changes require synchronized updates to code, tests, docs, and progress files.
+- Do not treat lagged fundamentals in the feature panel as proof of point-in-time safety.

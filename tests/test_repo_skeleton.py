@@ -114,10 +114,24 @@ def test_data_cli_entrypoints_return_success(capsys) -> None:
     assert "Panel assembly completed." in captured.out
 
 
+def test_feature_cli_entrypoint_returns_success(capsys) -> None:
+    """Ensure the implemented feature-generation CLI runs end to end."""
+    ingestion = import_module("src.run_data_ingestion")
+    panel = import_module("src.run_panel_assembly")
+    feature_generation = import_module("src.run_feature_generation")
+
+    assert ingestion.main() == 0
+    capsys.readouterr()
+    assert panel.main() == 0
+    capsys.readouterr()
+    assert feature_generation.main() == 0
+    captured = capsys.readouterr()
+    assert "Feature generation completed." in captured.out
+
+
 def test_remaining_stage_cli_scaffolds_return_success(capsys) -> None:
     """Ensure the non-data scaffold CLIs still run and describe their stage."""
     cli_expectations = {
-        "src.run_feature_generation": "Stage: feature_generation",
         "src.run_signal_generation": "Stage: signal_generation",
         "src.run_backtest": "Stage: backtest",
         "src.run_modeling_baselines": "Stage: modeling_baselines",

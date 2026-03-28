@@ -4,12 +4,12 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The data-ingestion and monthly-panel foundation is implemented.
+The data foundation and leakage-safe feature layer are implemented.
 
-- `src.data` now ingests local raw market, benchmark, and fundamentals files
-- processed monthly artifacts are written to `outputs/data/`
-- QC summaries and coverage reports are produced alongside the processed artifacts
-- feature engineering, signals, backtests, and modeling remain out of scope for the current implementation and are still scaffolded only
+- `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
+- `src.features` generates leakage-safe monthly features from that panel
+- data and feature QC artifacts are written to deterministic output paths
+- signals, portfolio construction, backtesting, evaluation, and modeling remain intentionally downstream
 
 No benchmark-quality research result, trading claim, or out-of-sample ML claim is included.
 
@@ -20,14 +20,13 @@ No benchmark-quality research result, trading claim, or out-of-sample ML claim i
 - Initial universe: large-cap US tech plus a large-cap non-tech comparison group
 - Explicit benchmarks: `SPY`, `QQQ`
 - Derived benchmark: `equal_weight_universe`
-- Initial portfolio form later in the roadmap: cross-sectional ranking, top `N=10`, equal weight, monthly rebalance
 
 Seeded tickers in `config/universe.yaml`:
 
 - Tech: `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, `AVGO`, `ORCL`, `CRM`, `ADBE`
 - Comparison: `JPM`, `JNJ`, `PG`, `UNH`, `HD`, `WMT`, `XOM`, `CVX`, `COST`, `KO`
 
-## Raw Data Contract
+## Implemented Raw Data Contract
 
 The current pipeline is local-file-first. Raw inputs live under:
 
@@ -40,18 +39,18 @@ Supported raw file types:
 - `.csv`
 - `.parquet`
 
-Repo-local deterministic sample inputs are included so the ingestion and panel runners are immediately runnable without live connectors.
+Repo-local deterministic sample inputs are included so ingestion, panel assembly, and feature generation are runnable now without live connectors.
 
-## Implemented Data Outputs
+## Implemented Outputs
 
-Primary processed artifacts:
+Processed data artifacts:
 
 - `outputs/data/prices_monthly.parquet`
 - `outputs/data/fundamentals_monthly.parquet`
 - `outputs/data/benchmarks_monthly.parquet`
 - `outputs/data/monthly_panel.parquet`
 
-QC and coverage artifacts:
+Data QC artifacts:
 
 - `outputs/data/prices_qc_summary.json`
 - `outputs/data/fundamentals_qc_summary.json`
@@ -60,33 +59,46 @@ QC and coverage artifacts:
 - `outputs/data/ticker_coverage_summary.csv`
 - `outputs/data/date_coverage_summary.csv`
 
+Feature artifacts:
+
+- `outputs/features/feature_panel.parquet`
+- `outputs/features/feature_qc_summary.json`
+- `outputs/features/feature_missingness_summary.csv`
+
 ## Config Foundation
 
-The implemented data path uses these config files:
+Implemented stage config files:
 
-- `config/universe.yaml`: seeded universe, benchmarks, monthly calendar window
-- `config/data.yaml`: raw-data locations, month-end convention, column priorities, benchmark defaults, fundamentals lag settings
-- `config/paths.yaml`: canonical output directories and artifact paths
-- `config/logging.yaml`: logging defaults
+- `config/universe.yaml`
+- `config/data.yaml`
+- `config/features.yaml`
+- `config/paths.yaml`
+- `config/logging.yaml`
 
-Later-stage config remains scaffolded for downstream work:
+Later-stage config remains scaffolded:
 
 - `config/backtest.yaml`
-- `config/features.yaml`
 - `config/model.yaml`
 
-## Data Logic Summary
+## Data And Feature Logic Summary
 
-- Monthly date convention: calendar month-end
-- `adjusted_close`: the first available configured adjusted-close alias, with `close` as the last fallback in `config/data.yaml`
-- `monthly_return`: `adjusted_close_t / adjusted_close_t-1 - 1` after collapsing raw daily or monthly observations to one month-end row per ticker using the last observation in the month
-- `benchmark_return`: the same month-over-month return formula, aligned from the configured primary benchmark `SPY`
-- Equal-weight benchmark: simple cross-sectional average of available universe constituent monthly returns for each month, with a chained synthetic adjusted-close series starting at `100.0`
-- Fundamentals mapping: raw fundamentals observations are normalized to month-end, shifted forward by a conservative `2`-month effective lag, then mapped to the monthly calendar by ticker using backward as-of logic
+Data-stage rules:
+
+- monthly dates use calendar month-end
+- monthly security and benchmark returns use `adjusted_close_t / adjusted_close_t-1 - 1`
+- the equal-weight benchmark is the simple average of available constituent monthly returns, chained from `100.0`
+- fundamentals are mapped with a conservative `2`-month effective lag and `12`-month staleness cap
+
+Feature-stage rules:
+
+- predictive feature inputs are lagged to use only information available through `t-1`
+- price features currently include `ret_1m_lag1`, `mom_3m`, `mom_6m`, `mom_12m`, `drawdown_12m`, `vol_12m`, `beta_12m_spy`, `adjusted_close_lag1`, and `benchmark_return_lag1`
+- fundamental features are shifted one monthly period and currently include lagged market-cap, valuation, profitability, growth, and balance-sheet metrics
+- `numeric_fill` remains `none` so missingness stays visible instead of being silently imputed
 
 Important caveat:
 
-- Point-in-time-safe fundamentals are not solved. The current lagged monthly mapping is conservative, but revised-history bias remains a known risk until a true point-in-time source is added.
+- Point-in-time-safe fundamentals are still not solved. The current lagged mapping is conservative, but revised-history bias remains a known risk.
 
 ## CLI Entrypoints
 
@@ -102,10 +114,15 @@ Run panel assembly:
 .\.venv\Scripts\python.exe -m src.run_panel_assembly
 ```
 
-Other stage entrypoints remain scaffold-only for now:
+Run feature generation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_feature_generation
+```
+
+Other stage entrypoints remain scaffold-only:
+
+```powershell
 .\.venv\Scripts\python.exe -m src.run_signal_generation
 .\.venv\Scripts\python.exe -m src.run_backtest
 .\.venv\Scripts\python.exe -m src.run_modeling_baselines
@@ -114,7 +131,7 @@ Other stage entrypoints remain scaffold-only for now:
 .\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
-Recommended interpreter for repo work:
+Recommended interpreter:
 
 ```powershell
 .\.venv\Scripts\python.exe -m ...
@@ -130,7 +147,8 @@ Manual verification completed on 2026-03-28:
 
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion`
 - `.\.venv\Scripts\python.exe -m src.run_panel_assembly`
+- `.\.venv\Scripts\python.exe -m src.run_feature_generation`
 
 ## Best Next Step
 
-Implement `src.features` on top of `outputs/data/monthly_panel.parquet` with documented lookback windows, lag rules, and missingness handling.
+Implement `src.signals` to turn the feature panel into deterministic cross-sectional rankings before any backtesting or ML work.
