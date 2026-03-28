@@ -1,0 +1,1 @@
+"""Market research system package."""

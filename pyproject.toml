@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "market-research-system"
+version = "0.1.0"
+description = "Reproducible market research and portfolio simulation system for rules-based and ML-assisted equity selection."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  { name = "Project Owner" }
+]
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "pyarrow>=15.0",
+  "scikit-learn>=1.5",
+  "statsmodels>=0.14",
+  "matplotlib>=3.8",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.5",
+  "mypy>=1.10",
+]
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

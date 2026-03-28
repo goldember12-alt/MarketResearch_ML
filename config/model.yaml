@@ -1,0 +1,20 @@
+# Modeling configuration
+label:
+  target_type: "forward_excess_return_binary"
+  horizon_months: 3
+  benchmark: "SPY"
+
+validation:
+  scheme: "walk_forward"
+  min_train_periods: 36
+  test_periods: 12
+
+models:
+  deterministic_score:
+    enabled: true
+  logistic_regression:
+    enabled: true
+  random_forest:
+    enabled: true
+  gradient_boosting:
+    enabled: false

@@ -1,0 +1,23 @@
+# Feature-engineering configuration
+feature_groups:
+  price_based: true
+  valuation_based: true
+  quality_profitability: true
+  growth: true
+  balance_sheet: true
+  revisions: false
+
+lookbacks:
+  momentum_3m: 3
+  momentum_6m: 6
+  momentum_12m: 12
+  volatility_12m: 12
+  beta_12m: 12
+
+lags:
+  default_periods: 1
+
+missingness:
+  numeric_fill: "none"
+  categorical_fill: "missing"
+  drop_threshold: 0.5

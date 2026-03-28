@@ -1,0 +1,40 @@
+preset:
+  name: "initial_large_cap_tech_plus_comparison"
+  description: "Large-cap US tech cohort plus a large-cap non-tech comparison group for monthly research and backtesting."
+  source: "manual_seed_list"
+
+universe:
+  tech_large_cap:
+    - "AAPL"
+    - "MSFT"
+    - "NVDA"
+    - "AMZN"
+    - "META"
+    - "GOOGL"
+    - "AVGO"
+    - "ORCL"
+    - "CRM"
+    - "ADBE"
+  comparison_large_cap_non_tech:
+    - "JPM"
+    - "JNJ"
+    - "PG"
+    - "UNH"
+    - "HD"
+    - "WMT"
+    - "XOM"
+    - "CVX"
+    - "COST"
+    - "KO"
+
+benchmarks:
+  explicit:
+    - "SPY"
+    - "QQQ"
+  derived:
+    - "equal_weight_universe"
+
+calendar:
+  frequency: "monthly"
+  start_date: "2015-01-01"
+  end_date: null
