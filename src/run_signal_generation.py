@@ -1,20 +1,45 @@
 """CLI entrypoint for deterministic signal generation."""
 
-from src.utils import StageDefinition, run_stage_cli
+from __future__ import annotations
 
+import logging
 
-STAGE = StageDefinition(
-    name="signal_generation",
-    purpose="Translate the feature panel into deterministic cross-sectional rankings for baseline portfolio construction.",
-    next_step="Implement deterministic score aggregation and rank outputs in src.signals before any ML modeling work.",
-    expected_inputs=("outputs/features/feature_panel.parquet",),
-    expected_outputs=("deterministic ranking table to be formalized in src.signals",),
-)
+from src.data.io import read_parquet_required, write_csv, write_json, write_parquet
+from src.signals.config import configure_signal_logging, load_signal_pipeline_config
+from src.signals.qc import build_signal_qc_summary, build_signal_selection_summary
+from src.signals.scoring import build_signal_rankings
+from src.utils.config import ensure_output_directories
 
 
 def main() -> int:
-    """Run the scaffolded signal-generation stage."""
-    return run_stage_cli(STAGE)
+    """Generate deterministic cross-sectional rankings from the feature panel."""
+    config = load_signal_pipeline_config()
+    configure_signal_logging(config)
+    ensure_output_directories(config.project)
+
+    logger = logging.getLogger(__name__)
+    logger.info("Starting signal generation.")
+
+    feature_panel = read_parquet_required(config.outputs.feature_panel, "feature_panel")
+    rankings, metadata = build_signal_rankings(feature_panel, config)
+
+    write_parquet(rankings, config.outputs.signal_rankings)
+    write_json(
+        build_signal_qc_summary(
+            rankings,
+            configured_features=metadata["configured_features"],
+            selection_top_n=metadata["selection_top_n"],
+        ),
+        config.outputs.signal_qc_summary,
+    )
+    write_csv(build_signal_selection_summary(rankings), config.outputs.signal_selection_summary)
+
+    logger.info("Wrote %s", config.outputs.signal_rankings)
+    print("Signal generation completed.")
+    print(config.outputs.signal_rankings)
+    print(config.outputs.signal_qc_summary)
+    print(config.outputs.signal_selection_summary)
+    return 0
 
 
 if __name__ == "__main__":

@@ -11,12 +11,12 @@ STAGE = StageDefinition(
         "outputs/backtests/backtest_summary.json",
         "outputs/backtests/portfolio_returns.parquet",
         "outputs/backtests/benchmark_returns.parquet",
+        "outputs/backtests/performance_by_period.csv",
+        "outputs/backtests/risk_metrics_summary.csv",
     ),
     expected_outputs=(
         "outputs/reports/strategy_report.md",
         "outputs/reports/experiment_registry.jsonl",
-        "outputs/reports/performance_by_period.csv",
-        "outputs/reports/risk_metrics_summary.csv",
     ),
 )
 

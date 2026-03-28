@@ -7,7 +7,7 @@
 - Date convention: normalized calendar month-end
 - Deterministic keys only
 
-The canonical monthly panel is the shared upstream table for feature generation, later deterministic signals, and later chronology-safe modeling workflows.
+The canonical monthly panel is the shared upstream table for feature generation, deterministic signals, and later chronology-safe modeling workflows.
 
 ## Raw Data Contract
 
@@ -147,7 +147,7 @@ Implemented columns:
 | `benchmark_return` | float | aligned primary benchmark return |
 | `sector` | string | classification field |
 | `industry` | string | classification field |
-| `market_cap` | float | lagged mapped market cap |
+| `market_cap` | float | mapped market cap |
 | `pe_ratio` | float | valuation metric |
 | `price_to_sales` | float | valuation metric |
 | `price_to_book` | float | valuation metric |
@@ -177,7 +177,7 @@ Metadata columns:
 | `ticker` | string | analytic unit key |
 | `date` | timestamp | feature observation month |
 | `benchmark_ticker` | string | benchmark id used for benchmark-relative features |
-| `sector` | string | metadata only, not a predictive return target |
+| `sector` | string | metadata only |
 | `industry` | string | metadata only |
 | `fundamentals_source_date` | timestamp | mapped fundamentals source month |
 | `fundamentals_effective_date` | timestamp | mapped fundamentals effective month |
@@ -209,13 +209,163 @@ Implemented feature columns:
 | `debt_to_equity_lag1` | float | prior month balance-sheet metric |
 | `current_ratio_lag1` | float | prior month balance-sheet metric |
 
-Feature rules:
+### `outputs/signals/signal_rankings.parquet`
 
-- Predictive features use only information available through `t-1`
-- Fundamental metrics are shifted one additional month before inclusion in the feature panel
-- Numeric missingness is preserved rather than imputed
+Primary key:
 
-## QC And Coverage Artifacts
+- `ticker`, `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| metadata columns | mixed | inherited from `feature_panel.parquet` |
+| raw feature columns | float | inherited lagged predictive inputs |
+| `score__*` columns | float | cross-sectional percentile scores by month |
+| `non_missing_feature_count` | int | count of configured raw feature values available for scoring |
+| `composite_score` | float | available-feature weighted mean of score columns |
+| `score_rank` | float | deterministic within-month composite rank, 1 is best |
+| `score_rank_pct` | float | `score_rank / scored_row_count` within the month |
+| `selected_top_n` | bool | whether the name falls inside configured top-N selection |
+
+### `outputs/backtests/holdings_history.parquet`
+
+Primary key:
+
+- `date`, `ticker`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `date` | timestamp | rebalance decision month-end `t` |
+| `ticker` | string | selected security identifier |
+| `portfolio_weight` | float | target security weight used for the next period |
+| `signal_rank` | float | selected deterministic rank from the signal artifact |
+| `composite_score` | float | selected deterministic composite score |
+| `holding_period_start` | timestamp | same as rebalance decision date `t` |
+| `holding_period_end` | timestamp | next realized month-end `t+1` |
+| `selected_name_count` | int | number of selected securities at rebalance date `t` |
+| `configured_top_n` | int | configured target top-N count |
+| `target_weight_sum` | float | total invested weight across selected securities |
+| `cash_weight` | float | residual cash weight implied by config and selection availability |
+| `sector` | string | classification metadata for auditability |
+| `industry` | string | classification metadata for auditability |
+
+### `outputs/backtests/trade_log.parquet`
+
+Primary key:
+
+- `rebalance_date`, `ticker`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `rebalance_date` | timestamp | current rebalance month-end `t` |
+| `previous_rebalance_date` | timestamp | prior rebalance month-end |
+| `ticker` | string | security identifier affected by the rebalance |
+| `trade_type` | string | `entry`, `exit`, `increase`, `decrease`, or `rebalance` |
+| `portfolio_weight_previous` | float | prior target weight before the rebalance |
+| `portfolio_weight_target` | float | new target weight after the rebalance |
+| `weight_change` | float | signed target-weight change |
+| `abs_weight_change` | float | absolute target-weight change |
+| `buy_weight` | float | positive traded notional fraction |
+| `sell_weight` | float | negative traded notional fraction expressed positively |
+
+### `outputs/backtests/portfolio_returns.parquet`
+
+Primary key:
+
+- `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `date` | timestamp | realized month-end return date `t+1` |
+| `formation_date` | timestamp | rebalance decision date `t` that formed the holdings |
+| `holding_count` | int | count of securities with active holdings in the realized period |
+| `selected_name_count` | int | selected security count at formation date |
+| `invested_weight` | float | total invested security weight |
+| `cash_weight` | float | residual cash weight for the period |
+| `gross_buy_weight` | float | aggregate buy notional at formation date |
+| `gross_sell_weight` | float | aggregate sell notional at formation date |
+| `gross_trade_weight` | float | sum of absolute target-weight changes |
+| `turnover` | float | one-way traded notional fraction, defined as `max(buys, sells)` |
+| `missing_security_return_count` | int | count of selected names whose realized return was missing and filled with `0.0` |
+| `portfolio_gross_return` | float | weighted gross portfolio return before costs |
+| `transaction_cost_rate` | float | decimal one-way cost rate applied to turnover |
+| `transaction_cost` | float | turnover times configured cost rate |
+| `portfolio_net_return` | float | gross return minus transaction cost |
+| `cumulative_gross_return` | float | chained gross cumulative return |
+| `cumulative_net_return` | float | chained net cumulative return |
+
+### `outputs/backtests/benchmark_returns.parquet`
+
+Primary key:
+
+- `benchmark_ticker`, `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `date` | timestamp | realized benchmark month-end return date `t+1` |
+| `formation_date` | timestamp | portfolio formation date `t` aligned to the same realized period |
+| `benchmark_ticker` | string | configured benchmark identifier |
+| `benchmark_return` | float | realized monthly benchmark return aligned to the portfolio date |
+| `cumulative_return` | float | chained cumulative benchmark return |
+
+### `outputs/backtests/performance_by_period.csv`
+
+Primary key:
+
+- `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| portfolio return columns | mixed | copied from `portfolio_returns.parquet` |
+| `benchmark_return__*` | float | wide benchmark monthly returns aligned to each realized period |
+| `benchmark_cumulative_return__*` | float | wide benchmark cumulative returns aligned to each realized period |
+
+### `outputs/backtests/risk_metrics_summary.csv`
+
+Primary key:
+
+- `series_id`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `series_id` | string | `portfolio_gross`, `portfolio_net`, or benchmark identifier |
+| `series_type` | string | `portfolio` or `benchmark` |
+| `period_count` | int | realized monthly period count in the summary |
+| `cumulative_return` | float | chained total return |
+| `annualized_return` | float | monthly compounded return annualized by `12 / periods` |
+| `annualized_volatility` | float | monthly return standard deviation annualized by `sqrt(12)` |
+| `sharpe_ratio` | float | zero-rate Sharpe ratio |
+| `sortino_ratio` | float | zero-rate Sortino ratio |
+| `max_drawdown` | float | worst peak-to-trough decline |
+| `hit_rate` | float | share of realized months with positive return |
+| `average_turnover` | float | mean one-way turnover for applicable series |
+| `total_turnover` | float | total one-way turnover for applicable series |
+
+### `outputs/backtests/backtest_summary.json`
+
+Structure:
+
+- stage config snapshot
+- holding-period convention
+- realized date range
+- benchmark list
+- metrics by series
+- compact QC summary
+
+## QC Artifacts
 
 ### Data-Stage QC
 
@@ -231,26 +381,22 @@ Feature rules:
 - `outputs/features/feature_qc_summary.json`
 - `outputs/features/feature_missingness_summary.csv`
 
-Feature QC currently includes:
+### Signal-Stage QC
 
-- row count
-- feature column count
-- feature group membership
-- duplicate key count
-- min and max date
-- total missing feature-cell count
-- missing feature cells by date
+- `outputs/signals/signal_qc_summary.json`
+- `outputs/signals/signal_selection_summary.csv`
 
-Feature missingness CSV currently includes:
+### Backtest-Stage QC
 
-- feature name
-- feature group
-- missing count
-- non-missing count
-- missing ratio
-- first valid date
+Backtest QC currently lives inside `outputs/backtests/backtest_summary.json` and includes:
+
+- benchmark alignment status
+- holdings and rebalance row counts
+- realized missing-return policy and count
+- max holdings-plus-cash weight deviation from `1.0`
+- min and max cash weight across rebalances
 
 ## Change Control
 
 - All schema changes require synchronized updates to code, tests, docs, and progress files.
-- Do not treat lagged fundamentals in the feature panel as proof of point-in-time safety.
+- Do not treat lagged fundamentals or fundamentals-derived signals as proof of point-in-time safety.

@@ -14,6 +14,7 @@
 - Defined the canonical report and experiment-registry artifact paths
 - Documented required evaluation context and risk disclosures
 - Added a runnable scaffold entrypoint for evaluation reporting
+- Updated the scaffold contract so reporting consumes the backtest-owned period and risk tables instead of redefining them
 
 ## Testing Status
 - Covered by repo scaffold tests for CLI import/execution and path loading
@@ -23,7 +24,8 @@
 
 ## Known Issues / Risks
 - No report writer or registry append logic exists yet
-- Evaluation metrics and period splits are documented but not implemented
+- Formal strategy-report generation and experiment-registry appends are not implemented
+- Regime splits, benchmark-relative narratives, and experiment logging still remain downstream of the now-implemented backtest metric tables
 
 ## Immediate Next Step
 - Implement report assembly from backtest artifacts and append meaningful runs to `outputs/reports/experiment_registry.jsonl`

@@ -75,6 +75,7 @@ class OutputPathsConfig:
     root: Path
     data_dir: Path
     features_dir: Path
+    signals_dir: Path
     backtests_dir: Path
     models_dir: Path
     reports_dir: Path
@@ -92,6 +93,9 @@ class OutputPathsConfig:
     feature_panel: Path
     feature_qc_summary: Path
     feature_missingness_summary: Path
+    signal_rankings: Path
+    signal_qc_summary: Path
+    signal_selection_summary: Path
     holdings_history: Path
     trade_log: Path
     portfolio_returns: Path
@@ -112,6 +116,7 @@ class OutputPathsConfig:
         return (
             self.data_dir,
             self.features_dir,
+            self.signals_dir,
             self.backtests_dir,
             self.models_dir,
             self.reports_dir,
@@ -194,6 +199,7 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
         root=output_dirs["root"],
         data_dir=output_dirs["data_dir"],
         features_dir=output_dirs["features_dir"],
+        signals_dir=output_dirs["signals_dir"],
         backtests_dir=output_dirs["backtests_dir"],
         models_dir=output_dirs["models_dir"],
         reports_dir=output_dirs["reports_dir"],
@@ -211,6 +217,9 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
         feature_panel=artifact_paths["feature_panel"],
         feature_qc_summary=artifact_paths["feature_qc_summary"],
         feature_missingness_summary=artifact_paths["feature_missingness_summary"],
+        signal_rankings=artifact_paths["signal_rankings"],
+        signal_qc_summary=artifact_paths["signal_qc_summary"],
+        signal_selection_summary=artifact_paths["signal_selection_summary"],
         holdings_history=artifact_paths["holdings_history"],
         trade_log=artifact_paths["trade_log"],
         portfolio_returns=artifact_paths["portfolio_returns"],

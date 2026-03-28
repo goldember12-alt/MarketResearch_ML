@@ -58,6 +58,7 @@ def test_config_files_parse_and_cover_expected_categories() -> None:
         "logging": REPO_ROOT / "config" / "logging.yaml",
         "model": REPO_ROOT / "config" / "model.yaml",
         "paths": REPO_ROOT / "config" / "paths.yaml",
+        "signals": REPO_ROOT / "config" / "signals.yaml",
         "universe": REPO_ROOT / "config" / "universe.yaml",
     }
 
@@ -84,6 +85,7 @@ def test_project_config_matches_documented_defaults() -> None:
     assert config.backtest.transaction_cost_bps == 10.0
     assert config.outputs.monthly_panel == REPO_ROOT / "outputs" / "data" / "monthly_panel.parquet"
     assert config.outputs.panel_qc_summary == REPO_ROOT / "outputs" / "data" / "panel_qc_summary.json"
+    assert config.outputs.signal_rankings == REPO_ROOT / "outputs" / "signals" / "signal_rankings.parquet"
     assert (
         config.outputs.experiment_registry
         == REPO_ROOT / "outputs" / "reports" / "experiment_registry.jsonl"
@@ -129,11 +131,48 @@ def test_feature_cli_entrypoint_returns_success(capsys) -> None:
     assert "Feature generation completed." in captured.out
 
 
+def test_signal_cli_entrypoint_returns_success(capsys) -> None:
+    """Ensure the implemented signal-generation CLI runs end to end."""
+    ingestion = import_module("src.run_data_ingestion")
+    panel = import_module("src.run_panel_assembly")
+    feature_generation = import_module("src.run_feature_generation")
+    signal_generation = import_module("src.run_signal_generation")
+
+    assert ingestion.main() == 0
+    capsys.readouterr()
+    assert panel.main() == 0
+    capsys.readouterr()
+    assert feature_generation.main() == 0
+    capsys.readouterr()
+    assert signal_generation.main() == 0
+    captured = capsys.readouterr()
+    assert "Signal generation completed." in captured.out
+
+
+def test_backtest_cli_entrypoint_returns_success(capsys) -> None:
+    """Ensure the implemented backtest CLI runs end to end."""
+    ingestion = import_module("src.run_data_ingestion")
+    panel = import_module("src.run_panel_assembly")
+    feature_generation = import_module("src.run_feature_generation")
+    signal_generation = import_module("src.run_signal_generation")
+    backtest = import_module("src.run_backtest")
+
+    assert ingestion.main() == 0
+    capsys.readouterr()
+    assert panel.main() == 0
+    capsys.readouterr()
+    assert feature_generation.main() == 0
+    capsys.readouterr()
+    assert signal_generation.main() == 0
+    capsys.readouterr()
+    assert backtest.main() == 0
+    captured = capsys.readouterr()
+    assert "Backtest completed." in captured.out
+
+
 def test_remaining_stage_cli_scaffolds_return_success(capsys) -> None:
-    """Ensure the non-data scaffold CLIs still run and describe their stage."""
+    """Ensure the still-scaffolded downstream CLIs run and describe their stage."""
     cli_expectations = {
-        "src.run_signal_generation": "Stage: signal_generation",
-        "src.run_backtest": "Stage: backtest",
         "src.run_modeling_baselines": "Stage: modeling_baselines",
         "src.run_logistic_regression": "Stage: logistic_regression",
         "src.run_random_forest": "Stage: random_forest",

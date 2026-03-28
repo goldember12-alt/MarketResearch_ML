@@ -1,0 +1,54 @@
+strategy:
+  name: "deterministic_composite_v1"
+  method: "cross_sectional_rank_average"
+  minimum_non_missing_features: 5
+  selection_top_n: 10
+  score_missing_policy: "available_weighted_mean"
+
+features:
+  higher_is_better:
+    - "ret_1m_lag1"
+    - "mom_3m"
+    - "mom_6m"
+    - "mom_12m"
+    - "drawdown_12m"
+    - "gross_margin_lag1"
+    - "operating_margin_lag1"
+    - "roe_lag1"
+    - "roa_lag1"
+    - "revenue_growth_lag1"
+    - "eps_growth_lag1"
+    - "current_ratio_lag1"
+  lower_is_better:
+    - "pe_ratio_lag1"
+    - "price_to_sales_lag1"
+    - "price_to_book_lag1"
+    - "ev_to_ebitda_lag1"
+    - "debt_to_equity_lag1"
+
+weights:
+  ret_1m_lag1: 1.0
+  mom_3m: 1.0
+  mom_6m: 1.0
+  mom_12m: 1.0
+  drawdown_12m: 1.0
+  gross_margin_lag1: 1.0
+  operating_margin_lag1: 1.0
+  roe_lag1: 1.0
+  roa_lag1: 1.0
+  revenue_growth_lag1: 1.0
+  eps_growth_lag1: 1.0
+  current_ratio_lag1: 1.0
+  pe_ratio_lag1: 1.0
+  price_to_sales_lag1: 1.0
+  price_to_book_lag1: 1.0
+  ev_to_ebitda_lag1: 1.0
+  debt_to_equity_lag1: 1.0
+
+tie_breakers:
+  - column: "composite_score"
+    ascending: false
+  - column: "market_cap_lag1"
+    ascending: false
+  - column: "ticker"
+    ascending: true

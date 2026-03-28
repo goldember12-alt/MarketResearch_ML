@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-Data foundation and leakage-safe feature layer implemented. The next milestone is deterministic signal generation on top of the feature panel.
+Data foundation, leakage-safe feature layer, deterministic signal layer, and deterministic backtest baseline are implemented. The next milestone is evaluation and reporting on top of the backtest artifacts.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -47,33 +47,68 @@ Delivered:
 - `outputs/features/feature_panel.parquet`
 - `outputs/features/feature_qc_summary.json`
 - `outputs/features/feature_missingness_summary.csv`
-- focused automated tests for feature formulas, lag behavior, missingness summaries, and CLI execution
+
+## Phase 4: Deterministic Signal Layer
+
+Status:
+
+- implemented
+
+Delivered:
+
+- `config/signals.yaml`
+- `src.signals` config, scoring, and QC modules
+- deterministic cross-sectional percentile scoring with explicit directionality
+- composite-score construction with available-feature weighted means
+- deterministic tie-breaking and top-N selection flags
+- `outputs/signals/signal_rankings.parquet`
+- `outputs/signals/signal_qc_summary.json`
+- `outputs/signals/signal_selection_summary.csv`
+- focused automated tests for scoring direction, minimum-feature gating, tie-break behavior, and CLI execution
 
 Remaining risks inside this phase:
 
-- short histories naturally leave long-lookback features missing
-- numeric imputation is intentionally not implemented yet
-- fundamentals-derived features still inherit revised-history bias risk
+- short histories naturally leave some long-lookback features missing
+- fundamentals-derived signals still inherit revised-history bias risk
 
-## Phase 4: Deterministic Signal And Backtest Baseline
+## Phase 5: Deterministic Backtest Baseline
+
+Status:
+
+- implemented
+
+Delivered:
+
+- `src.backtest` config, holdings, trades, returns, metrics, and QC modules
+- leakage-safe `t` to `t+1` holding convention
+- deterministic holdings construction from signal selections
+- trade-log and turnover tracking
+- turnover-based transaction cost application
+- explicit benchmark alignment to `SPY`, `QQQ`, and `equal_weight_universe`
+- `outputs/backtests/holdings_history.parquet`
+- `outputs/backtests/trade_log.parquet`
+- `outputs/backtests/portfolio_returns.parquet`
+- `outputs/backtests/benchmark_returns.parquet`
+- `outputs/backtests/backtest_summary.json`
+- `outputs/backtests/performance_by_period.csv`
+- `outputs/backtests/risk_metrics_summary.csv`
+- focused automated tests for holdings, turnover, alignment, costs, benchmarks, drawdown, duplicate keys, and empty-month handling
+
+Remaining risks inside this phase:
+
+- current sample data are deterministic fixtures, not benchmark-quality research data
+- very short histories make annualized metrics unstable
+- fundamentals-derived signals still inherit revised-history bias risk
+
+## Phase 6: Evaluation And Reporting
 
 Next deliverables:
 
-- deterministic ranking logic
-- signal artifact schema
-- portfolio construction
-- monthly backtest outputs
-- benchmark-relative summary metrics
-
-## Phase 5: Evaluation And Reporting
-
-Deferred deliverables:
-
 - strategy report generation
 - experiment registry appends
-- period and risk-metric summary tables
+- formal benchmark-relative diagnostics and interpretation rules
 
-## Phase 6: Modeling Baselines
+## Phase 7: Modeling Baselines
 
 Deferred deliverables:
 
@@ -82,7 +117,7 @@ Deferred deliverables:
 - logistic regression baseline
 - random forest baseline
 
-## Phase 7: Expansion And Forward Evaluation
+## Phase 8: Expansion And Forward Evaluation
 
 Deferred deliverables:
 

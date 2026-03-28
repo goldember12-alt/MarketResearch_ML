@@ -3,6 +3,7 @@ portfolio:
   top_n: 10
   weighting: "equal_weight"
   max_position_weight: 0.10
+  cash_handling_policy: "redistribute"
   sector_cap: null
 
 rebalancing:

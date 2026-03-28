@@ -4,14 +4,15 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The data foundation and leakage-safe feature layer are implemented.
+The data foundation, leakage-safe feature layer, deterministic signal layer, and deterministic monthly backtest baseline are implemented.
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
-- data and feature QC artifacts are written to deterministic output paths
-- signals, portfolio construction, backtesting, evaluation, and modeling remain intentionally downstream
+- `src.signals` converts the feature panel into deterministic cross-sectional rankings
+- `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, benchmark comparisons, and summary metrics
+- data, feature, signal, and backtest artifacts are written to deterministic output paths
 
-No benchmark-quality research result, trading claim, or out-of-sample ML claim is included.
+No benchmark-quality research conclusion, live-trading claim, or out-of-sample ML claim is included.
 
 ## Canonical Research Preset
 
@@ -39,7 +40,7 @@ Supported raw file types:
 - `.csv`
 - `.parquet`
 
-Repo-local deterministic sample inputs are included so ingestion, panel assembly, and feature generation are runnable now without live connectors.
+Repo-local deterministic sample inputs are included so ingestion, panel assembly, feature generation, signal generation, and backtesting are runnable now without live connectors.
 
 ## Implemented Outputs
 
@@ -65,6 +66,22 @@ Feature artifacts:
 - `outputs/features/feature_qc_summary.json`
 - `outputs/features/feature_missingness_summary.csv`
 
+Signal artifacts:
+
+- `outputs/signals/signal_rankings.parquet`
+- `outputs/signals/signal_qc_summary.json`
+- `outputs/signals/signal_selection_summary.csv`
+
+Backtest artifacts:
+
+- `outputs/backtests/holdings_history.parquet`
+- `outputs/backtests/trade_log.parquet`
+- `outputs/backtests/portfolio_returns.parquet`
+- `outputs/backtests/benchmark_returns.parquet`
+- `outputs/backtests/backtest_summary.json`
+- `outputs/backtests/performance_by_period.csv`
+- `outputs/backtests/risk_metrics_summary.csv`
+
 ## Config Foundation
 
 Implemented stage config files:
@@ -72,15 +89,16 @@ Implemented stage config files:
 - `config/universe.yaml`
 - `config/data.yaml`
 - `config/features.yaml`
+- `config/signals.yaml`
+- `config/backtest.yaml`
 - `config/paths.yaml`
 - `config/logging.yaml`
 
 Later-stage config remains scaffolded:
 
-- `config/backtest.yaml`
 - `config/model.yaml`
 
-## Data And Feature Logic Summary
+## Logic Summary
 
 Data-stage rules:
 
@@ -92,13 +110,31 @@ Data-stage rules:
 Feature-stage rules:
 
 - predictive feature inputs are lagged to use only information available through `t-1`
-- price features currently include `ret_1m_lag1`, `mom_3m`, `mom_6m`, `mom_12m`, `drawdown_12m`, `vol_12m`, `beta_12m_spy`, `adjusted_close_lag1`, and `benchmark_return_lag1`
-- fundamental features are shifted one monthly period and currently include lagged market-cap, valuation, profitability, growth, and balance-sheet metrics
-- `numeric_fill` remains `none` so missingness stays visible instead of being silently imputed
+- price features include lagged return, momentum, drawdown, volatility, beta, lagged close, and lagged benchmark return
+- fundamental features are shifted one monthly period and include lagged market-cap, valuation, profitability, growth, and balance-sheet metrics
+- `numeric_fill` remains `none` so missingness stays visible
+
+Signal-stage rules:
+
+- deterministic rankings are built cross-sectionally by month from configured lagged features
+- each feature is converted to a percentile score within the month
+- higher-is-better and lower-is-better directions are defined in `config/signals.yaml`
+- the composite score is the available-feature weighted mean
+- rows must meet the configured minimum non-missing feature count to receive a score
+- top `N=10` selection is deterministic and uses tie-breakers `composite_score`, `market_cap_lag1`, then `ticker`
+
+Backtest-stage rules:
+
+- holdings are formed from `signal_rankings.parquet` at month-end decision date `t`
+- those holdings earn realized returns over the next monthly period and are booked at month-end `t+1`
+- `portfolio_returns.parquet.date` is the realized month-end `t+1`
+- transaction costs use a linear one-way turnover model: `turnover * (transaction_cost_bps + slippage_bps) / 10000`
+- the current default cash policy is `redistribute`, so if names are selected they are fully invested equally unless a capped-weight configuration says otherwise
+- if a selected security is missing a realized return on a valid holding period end, the realized return is filled with `0.0` and logged in the QC summary
 
 Important caveat:
 
-- Point-in-time-safe fundamentals are still not solved. The current lagged mapping is conservative, but revised-history bias remains a known risk.
+- Point-in-time-safe fundamentals are still not solved. Lagged fundamentals and fundamentals-derived signals therefore still carry revised-history bias risk.
 
 ## CLI Entrypoints
 
@@ -120,11 +156,31 @@ Run feature generation:
 .\.venv\Scripts\python.exe -m src.run_feature_generation
 ```
 
-Other stage entrypoints remain scaffold-only:
+Run signal generation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_signal_generation
+```
+
+Run backtest:
+
+```powershell
 .\.venv\Scripts\python.exe -m src.run_backtest
+```
+
+Full deterministic pipeline:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_data_ingestion
+.\.venv\Scripts\python.exe -m src.run_panel_assembly
+.\.venv\Scripts\python.exe -m src.run_feature_generation
+.\.venv\Scripts\python.exe -m src.run_signal_generation
+.\.venv\Scripts\python.exe -m src.run_backtest
+```
+
+Other stage entrypoints remain scaffold-only:
+
+```powershell
 .\.venv\Scripts\python.exe -m src.run_modeling_baselines
 .\.venv\Scripts\python.exe -m src.run_logistic_regression
 .\.venv\Scripts\python.exe -m src.run_random_forest
@@ -145,10 +201,13 @@ Automated verification:
 
 Manual verification completed on 2026-03-28:
 
-- `.\.venv\Scripts\python.exe -m src.run_data_ingestion`
-- `.\.venv\Scripts\python.exe -m src.run_panel_assembly`
-- `.\.venv\Scripts\python.exe -m src.run_feature_generation`
+- `.\.venv\Scripts\python.exe -m src.run_signal_generation`
+- `.\.venv\Scripts\python.exe -m src.run_backtest`
+
+Current automated status on 2026-03-28:
+
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `34 passed`
 
 ## Best Next Step
 
-Implement `src.signals` to turn the feature panel into deterministic cross-sectional rankings before any backtesting or ML work.
+Implement evaluation and reporting workflows that consume the backtest artifacts, append benchmark-quality experiment metadata, and separate exploratory runs from canonical reported results.
