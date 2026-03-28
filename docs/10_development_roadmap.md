@@ -2,42 +2,57 @@
 
 ## Current Milestone
 
-Repository skeleton, config contract, and documentation alignment.
+Data foundation implemented. The next milestone is leakage-safe feature generation on top of the canonical monthly panel.
 
 ## Phase 1: Scaffold And Contract Alignment
 
 Status:
 
-- complete for the initial scaffold
+- complete
 
 Delivered:
 
-- stage-specific repo structure
+- repo stage structure
 - shared config loader
 - canonical output-path config
-- runnable CLI scaffolds
-- aligned docs and progress files
+- runnable downstream scaffolds
+- aligned baseline docs and progress files
 
 ## Phase 2: Data Foundation
 
-Next required deliverables:
+Status:
 
-- implement raw market, fundamentals, and benchmark ingestion contracts
-- validate schemas and coverage
-- assemble `outputs/data/monthly_panel.parquet`
-- document any point-in-time limitations
+- implemented for the local-file-first workflow
+
+Delivered:
+
+- `src.data` config-driven ingestion modules
+- raw local file contract under `data/raw/market`, `data/raw/benchmarks`, and `data/raw/fundamentals`
+- standardized monthly price, benchmark, and fundamentals artifacts
+- deterministic equal-weight universe benchmark construction
+- canonical `outputs/data/monthly_panel.parquet`
+- dataset QC JSON outputs
+- ticker and date coverage CSV outputs
+- focused automated tests for resampling, returns, duplicate keys, benchmark alignment, panel-grid validation, and fundamentals lag mapping
+
+Remaining risks inside this phase:
+
+- production-grade vendor adapters are not implemented yet
+- point-in-time-safe fundamentals are still unresolved
+- equal-weight benchmark construction is a research baseline, not an investable execution model
 
 ## Phase 3: Deterministic Feature Layer
 
-Deliverables:
+Next deliverables:
 
-- leakage-safe monthly feature generation
-- QC and missingness summaries
-- documented lookback and lag rules
+- leakage-safe monthly feature generation from `outputs/data/monthly_panel.parquet`
+- documented lookback windows and lag rules
+- feature QC and missingness summaries
+- updated schema and progress documentation
 
 ## Phase 4: Deterministic Signal And Backtest Baseline
 
-Deliverables:
+Deferred deliverables:
 
 - deterministic ranking logic
 - portfolio construction
@@ -46,7 +61,7 @@ Deliverables:
 
 ## Phase 5: Evaluation And Reporting
 
-Deliverables:
+Deferred deliverables:
 
 - strategy report generation
 - experiment registry appends
@@ -54,7 +69,7 @@ Deliverables:
 
 ## Phase 6: Modeling Baselines
 
-Deliverables:
+Deferred deliverables:
 
 - label construction
 - walk-forward validation datasets
@@ -63,7 +78,7 @@ Deliverables:
 
 ## Phase 7: Expansion And Forward Evaluation
 
-Deliverables:
+Deferred deliverables:
 
 - broader universe and regime analysis
 - diversification robustness studies

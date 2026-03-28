@@ -1,18 +1,17 @@
 # MarketResearch_ML
 
-This repository is a reproducible market research and portfolio simulation framework for rules-based and later ML-assisted equity selection. The canonical analytic unit is one row per ticker per month, and the first implementation target is a deterministic monthly ranking and top-N portfolio workflow with explicit benchmark comparison.
+This repository is a reproducible market research and portfolio simulation framework for rules-based and later ML-assisted equity selection. The canonical analytic unit is one row per ticker per month.
 
 ## Current Status
 
-The repo is intentionally scaffolded, not fully implemented. The current deliverable is a clean project contract:
+The data-ingestion and monthly-panel foundation is implemented.
 
-- canonical directories and artifact paths
-- concrete research preset and benchmark definitions
-- typed config loading shared by all CLI entrypoints
-- stage-specific runner modules that expose expected inputs, outputs, and the next implementation step
-- aligned docs and progress files that state what exists versus what is still only planned
+- `src.data` now ingests local raw market, benchmark, and fundamentals files
+- processed monthly artifacts are written to `outputs/data/`
+- QC summaries and coverage reports are produced alongside the processed artifacts
+- feature engineering, signals, backtests, and modeling remain out of scope for the current implementation and are still scaffolded only
 
-No completed research result, benchmark outcome, or out-of-sample claim is included in this scaffold.
+No benchmark-quality research result, trading claim, or out-of-sample ML claim is included.
 
 ## Canonical Research Preset
 
@@ -21,58 +20,91 @@ No completed research result, benchmark outcome, or out-of-sample claim is inclu
 - Initial universe: large-cap US tech plus a large-cap non-tech comparison group
 - Explicit benchmarks: `SPY`, `QQQ`
 - Derived benchmark: `equal_weight_universe`
-- Initial portfolio form: cross-sectional ranking, top `N=10`, equal weight, monthly rebalance
-- Scaffold transaction cost default: `10` bps per rebalance trade and `0` bps slippage
+- Initial portfolio form later in the roadmap: cross-sectional ranking, top `N=10`, equal weight, monthly rebalance
 
 Seeded tickers in `config/universe.yaml`:
 
 - Tech: `AAPL`, `MSFT`, `NVDA`, `AMZN`, `META`, `GOOGL`, `AVGO`, `ORCL`, `CRM`, `ADBE`
 - Comparison: `JPM`, `JNJ`, `PG`, `UNH`, `HD`, `WMT`, `XOM`, `CVX`, `COST`, `KO`
 
-## Repository Layout
+## Raw Data Contract
 
-- `src/data/`: ingestion, standardization, panel assembly
-- `src/features/`: leakage-safe feature generation
-- `src/signals/`: deterministic scoring and ranking
-- `src/portfolio/`: portfolio construction rules
-- `src/backtest/`: return simulation and benchmark comparison
-- `src/models/`: later ML baselines and model runners
-- `src/evaluation/`: metrics, diagnostics, and period analysis
-- `src/reporting/`: strategy report and experiment logging
-- `config/`: universe, features, backtest, model, logging, and output-path config
-- `docs/`: canonical project, schema, and methodology definitions
-- `progress/`: current handoff state and module-level status
-- `outputs/`: stage-specific artifact roots
+The current pipeline is local-file-first. Raw inputs live under:
 
-## Canonical Artifacts
+- `data/raw/market/`
+- `data/raw/benchmarks/`
+- `data/raw/fundamentals/`
 
-Primary artifacts are defined in `config/paths.yaml` and documented in `docs/03_data_schema.md`.
+Supported raw file types:
 
+- `.csv`
+- `.parquet`
+
+Repo-local deterministic sample inputs are included so the ingestion and panel runners are immediately runnable without live connectors.
+
+## Implemented Data Outputs
+
+Primary processed artifacts:
+
+- `outputs/data/prices_monthly.parquet`
+- `outputs/data/fundamentals_monthly.parquet`
+- `outputs/data/benchmarks_monthly.parquet`
 - `outputs/data/monthly_panel.parquet`
-- `outputs/features/feature_panel.parquet`
-- `outputs/backtests/backtest_summary.json`
-- `outputs/models/model_metadata.json`
-- `outputs/reports/strategy_report.md`
-- `outputs/reports/experiment_registry.jsonl`
+
+QC and coverage artifacts:
+
+- `outputs/data/prices_qc_summary.json`
+- `outputs/data/fundamentals_qc_summary.json`
+- `outputs/data/benchmarks_qc_summary.json`
+- `outputs/data/panel_qc_summary.json`
+- `outputs/data/ticker_coverage_summary.csv`
+- `outputs/data/date_coverage_summary.csv`
 
 ## Config Foundation
 
-The scaffold uses these config files as the current operating contract:
+The implemented data path uses these config files:
 
-- `config/universe.yaml`: seeded universe, benchmark set, calendar
-- `config/backtest.yaml`: rebalance, portfolio, and cost assumptions
-- `config/features.yaml`: initial feature families, lookbacks, lags, missingness policy
-- `config/model.yaml`: label and chronology-safe validation defaults
+- `config/universe.yaml`: seeded universe, benchmarks, monthly calendar window
+- `config/data.yaml`: raw-data locations, month-end convention, column priorities, benchmark defaults, fundamentals lag settings
 - `config/paths.yaml`: canonical output directories and artifact paths
 - `config/logging.yaml`: logging defaults
 
+Later-stage config remains scaffolded for downstream work:
+
+- `config/backtest.yaml`
+- `config/features.yaml`
+- `config/model.yaml`
+
+## Data Logic Summary
+
+- Monthly date convention: calendar month-end
+- `adjusted_close`: the first available configured adjusted-close alias, with `close` as the last fallback in `config/data.yaml`
+- `monthly_return`: `adjusted_close_t / adjusted_close_t-1 - 1` after collapsing raw daily or monthly observations to one month-end row per ticker using the last observation in the month
+- `benchmark_return`: the same month-over-month return formula, aligned from the configured primary benchmark `SPY`
+- Equal-weight benchmark: simple cross-sectional average of available universe constituent monthly returns for each month, with a chained synthetic adjusted-close series starting at `100.0`
+- Fundamentals mapping: raw fundamentals observations are normalized to month-end, shifted forward by a conservative `2`-month effective lag, then mapped to the monthly calendar by ticker using backward as-of logic
+
+Important caveat:
+
+- Point-in-time-safe fundamentals are not solved. The current lagged monthly mapping is conservative, but revised-history bias remains a known risk until a true point-in-time source is added.
+
 ## CLI Entrypoints
 
-The CLI modules are intentionally minimal but runnable. Each one loads the shared project contract, ensures the output directories exist, and prints the expected inputs, outputs, and next implementation step.
+Run ingestion:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_data_ingestion
+```
+
+Run panel assembly:
+
+```powershell
 .\.venv\Scripts\python.exe -m src.run_panel_assembly
+```
+
+Other stage entrypoints remain scaffold-only for now:
+
+```powershell
 .\.venv\Scripts\python.exe -m src.run_feature_generation
 .\.venv\Scripts\python.exe -m src.run_signal_generation
 .\.venv\Scripts\python.exe -m src.run_backtest
@@ -82,21 +114,23 @@ The CLI modules are intentionally minimal but runnable. Each one loads the share
 .\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
-Recommended interpreter for all repo work:
+Recommended interpreter for repo work:
 
 ```powershell
 .\.venv\Scripts\python.exe -m ...
 ```
 
-Repo-local scratch paths:
+## Verification
 
-- `.tmp/`
-- `.cache/`
+Automated verification:
 
-## Best Next Implementation Step
+- `.\.venv\Scripts\python.exe -m pytest -q`
 
-Implement `src.data` first:
+Manual verification completed on 2026-03-28:
 
-1. add raw-to-standardized ingestion contracts for prices, fundamentals, and benchmarks
-2. validate keyed schemas and date coverage
-3. assemble `outputs/data/monthly_panel.parquet` with deterministic joins and benchmark alignment
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion`
+- `.\.venv\Scripts\python.exe -m src.run_panel_assembly`
+
+## Best Next Step
+
+Implement `src.features` on top of `outputs/data/monthly_panel.parquet` with documented lookback windows, lag rules, and missingness handling.

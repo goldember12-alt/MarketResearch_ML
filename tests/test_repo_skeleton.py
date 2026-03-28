@@ -53,6 +53,7 @@ def test_config_files_parse_and_cover_expected_categories() -> None:
     """Ensure the documented config files exist and are valid YAML."""
     config_files = {
         "backtest": REPO_ROOT / "config" / "backtest.yaml",
+        "data": REPO_ROOT / "config" / "data.yaml",
         "features": REPO_ROOT / "config" / "features.yaml",
         "logging": REPO_ROOT / "config" / "logging.yaml",
         "model": REPO_ROOT / "config" / "model.yaml",
@@ -82,6 +83,7 @@ def test_project_config_matches_documented_defaults() -> None:
     assert config.backtest.frequency == "monthly"
     assert config.backtest.transaction_cost_bps == 10.0
     assert config.outputs.monthly_panel == REPO_ROOT / "outputs" / "data" / "monthly_panel.parquet"
+    assert config.outputs.panel_qc_summary == REPO_ROOT / "outputs" / "data" / "panel_qc_summary.json"
     assert (
         config.outputs.experiment_registry
         == REPO_ROOT / "outputs" / "reports" / "experiment_registry.jsonl"
@@ -98,11 +100,23 @@ def test_output_directories_exist_or_can_be_ensured() -> None:
         assert directory.is_dir()
 
 
-def test_stage_cli_scaffolds_return_success(capsys) -> None:
-    """Ensure the scaffold CLIs run and describe their stage."""
+def test_data_cli_entrypoints_return_success(capsys) -> None:
+    """Ensure the implemented data-stage CLIs run end to end."""
+    ingestion = import_module("src.run_data_ingestion")
+    panel = import_module("src.run_panel_assembly")
+
+    assert ingestion.main() == 0
+    captured = capsys.readouterr()
+    assert "Data ingestion completed." in captured.out
+
+    assert panel.main() == 0
+    captured = capsys.readouterr()
+    assert "Panel assembly completed." in captured.out
+
+
+def test_remaining_stage_cli_scaffolds_return_success(capsys) -> None:
+    """Ensure the non-data scaffold CLIs still run and describe their stage."""
     cli_expectations = {
-        "src.run_data_ingestion": "Stage: data_ingestion",
-        "src.run_panel_assembly": "Stage: panel_assembly",
         "src.run_feature_generation": "Stage: feature_generation",
         "src.run_signal_generation": "Stage: signal_generation",
         "src.run_backtest": "Stage: backtest",

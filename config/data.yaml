@@ -1,0 +1,40 @@
+raw_data:
+  root_dir: "data/raw"
+  market_dir: "data/raw/market"
+  fundamentals_dir: "data/raw/fundamentals"
+  benchmarks_dir: "data/raw/benchmarks"
+  file_patterns:
+    - "*.csv"
+    - "*.parquet"
+
+processing:
+  frequency: "monthly"
+  month_end_convention: "calendar_month_end"
+  adjusted_close_priority:
+    - "adjusted_close"
+    - "adj_close"
+    - "adjclose"
+    - "close"
+  ticker_column_priority:
+    - "ticker"
+    - "symbol"
+    - "security"
+  date_column_priority:
+    - "date"
+    - "timestamp"
+    - "datetime"
+    - "trading_date"
+  fundamentals_date_column_priority:
+    - "report_date"
+    - "filing_date"
+    - "period_end"
+    - "as_of_date"
+    - "date"
+  monthly_return_method: "adjusted_close_t_over_t_minus_1_minus_1"
+  benchmark_return_method: "adjusted_close_t_over_t_minus_1_minus_1"
+  primary_benchmark: "SPY"
+  equal_weight_benchmark_id: "equal_weight_universe"
+  equal_weight_start_value: 100.0
+  fundamentals_effective_lag_months: 2
+  fundamentals_max_staleness_months: 12
+  strict_universe_filter: true

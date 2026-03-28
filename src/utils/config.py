@@ -83,6 +83,12 @@ class OutputPathsConfig:
     fundamentals_monthly: Path
     benchmarks_monthly: Path
     monthly_panel: Path
+    prices_qc_summary: Path
+    fundamentals_qc_summary: Path
+    benchmarks_qc_summary: Path
+    panel_qc_summary: Path
+    ticker_coverage_summary: Path
+    date_coverage_summary: Path
     feature_panel: Path
     feature_qc_summary: Path
     feature_missingness_summary: Path
@@ -196,6 +202,12 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
         fundamentals_monthly=artifact_paths["fundamentals_monthly"],
         benchmarks_monthly=artifact_paths["benchmarks_monthly"],
         monthly_panel=artifact_paths["monthly_panel"],
+        prices_qc_summary=artifact_paths["prices_qc_summary"],
+        fundamentals_qc_summary=artifact_paths["fundamentals_qc_summary"],
+        benchmarks_qc_summary=artifact_paths["benchmarks_qc_summary"],
+        panel_qc_summary=artifact_paths["panel_qc_summary"],
+        ticker_coverage_summary=artifact_paths["ticker_coverage_summary"],
+        date_coverage_summary=artifact_paths["date_coverage_summary"],
         feature_panel=artifact_paths["feature_panel"],
         feature_qc_summary=artifact_paths["feature_qc_summary"],
         feature_missingness_summary=artifact_paths["feature_missingness_summary"],

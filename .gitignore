@@ -51,8 +51,20 @@ outputs/
 logs/
 artifacts/
 
-# Data artifacts (keep raw/source management outside git by default)
-data/
+# Data artifacts (keep root data management outside git by default)
+/data/*
+!/data/raw/
+/data/raw/*
+!/data/raw/README.md
+!/data/raw/market/
+/data/raw/market/*
+!/data/raw/market/prices_daily_sample.csv
+!/data/raw/benchmarks/
+/data/raw/benchmarks/*
+!/data/raw/benchmarks/benchmarks_daily_sample.csv
+!/data/raw/fundamentals/
+/data/raw/fundamentals/*
+!/data/raw/fundamentals/fundamentals_quarterly_sample.csv
 data_raw/
 data_processed/
 
