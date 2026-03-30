@@ -84,6 +84,33 @@ def _allocate_weights(
     return per_name_weight, max(0.0, 1.0 - invested_weight)
 
 
+def _resolve_holding_period_end(
+    month_frame: pd.DataFrame,
+    *,
+    rebalance_date: pd.Timestamp,
+    next_dates: pd.Series,
+) -> pd.Timestamp | pd.NaT:
+    """Resolve the realized period end for one rebalance date."""
+    explicit_column = None
+    for candidate in ("holding_period_end", "realized_label_date"):
+        if candidate in month_frame.columns:
+            explicit_column = candidate
+            break
+
+    if explicit_column is None:
+        return next_dates.loc[rebalance_date]
+
+    explicit_values = pd.to_datetime(month_frame[explicit_column]).dropna().drop_duplicates()
+    if explicit_values.empty:
+        return pd.NaT
+    if len(explicit_values) != 1:
+        raise ValueError(
+            "signal_rankings contains multiple realized period end values within a rebalance date. "
+            f"Date={rebalance_date.strftime('%Y-%m-%d')}, values={explicit_values.dt.strftime('%Y-%m-%d').tolist()}"
+        )
+    return pd.Timestamp(explicit_values.iloc[0])
+
+
 def build_holdings_history(
     signal_rankings: pd.DataFrame, config: BacktestPipelineConfig
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -104,6 +131,7 @@ def build_holdings_history(
     summary_rows: list[RebalanceSnapshot] = []
 
     for rebalance_date in rebalance_dates:
+        month_frame = rankings.loc[rankings["date"] == rebalance_date].copy()
         month_selected = rankings.loc[
             (rankings["date"] == rebalance_date) & rankings["selected_for_backtest"]
         ].copy()
@@ -116,7 +144,11 @@ def build_holdings_history(
             cash_handling_policy=config.portfolio.cash_handling_policy,
         )
         invested_weight = float(per_name_weight * selected_count)
-        holding_period_end = next_dates.loc[rebalance_date]
+        holding_period_end = _resolve_holding_period_end(
+            month_frame,
+            rebalance_date=pd.Timestamp(rebalance_date),
+            next_dates=next_dates,
+        )
         summary_rows.append(
             RebalanceSnapshot(
                 date=pd.Timestamp(rebalance_date),

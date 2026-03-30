@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow and the initial chronology-safe modeling baselines are implemented. The next milestone is routing model scores into model-driven portfolio construction and backtesting under the same benchmark and cost controls.
+The deterministic baseline workflow, chronology-safe modeling baselines, and an initial held-out model-driven backtest are implemented. The next milestone is expanding the model path into walk-forward multi-window evaluation and model-aware reporting.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -145,6 +145,25 @@ Remaining work inside this phase:
 - walk-forward or expanding-window multi-fold validation
 - model-driven portfolio construction and backtesting
 - richer model-aware reporting beyond prediction diagnostics
+
+## Phase 7A: Held-Out Model-Driven Backtest
+
+Status:
+
+- implemented baseline
+
+Delivered:
+
+- `src.models.backtest` for converting held-out model scores into backtestable rankings
+- runnable `src.run_model_backtest`
+- separate `model_*` backtest artifacts under `outputs/backtests/`
+- held-out model-backtest experiment-registry appends
+
+Remaining work inside this phase:
+
+- expand beyond the current short validation/test held-out window
+- compare multiple model runs systematically without overwriting the same canonical model artifacts
+- add model-aware reporting comparable to deterministic evaluation output
 
 ## Phase 8: Expansion And Forward Evaluation
 

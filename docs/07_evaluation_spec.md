@@ -60,6 +60,14 @@ Current modeling-diagnostic outputs:
 - `outputs/models/model_metadata.json`
 - `outputs/models/feature_importance.csv`
 
+Current model-driven backtest outputs:
+
+- `outputs/backtests/model_portfolio_returns.parquet`
+- `outputs/backtests/model_benchmark_returns.parquet`
+- `outputs/backtests/model_performance_by_period.csv`
+- `outputs/backtests/model_risk_metrics_summary.csv`
+- `outputs/backtests/model_backtest_summary.json`
+
 ## Period And Robustness Breakdowns
 
 The current implementation provides:
@@ -76,12 +84,13 @@ The following remain deferred:
 - concentration-aware interpretation for the seeded tech-heavy universe
 - automated regime-aware report sections
 - model-driven portfolio evaluation under the same transaction cost controls as the deterministic baseline
+- model-aware reporting comparable to `strategy_report.md`
 
 ## Interpretation Standard
 
 - Deterministic baselines come first.
 - No model or strategy should be evaluated only in-sample.
-- Current model-stage metrics are prediction diagnostics, not model-driven portfolio performance results.
+- Current model-stage metrics include both prediction diagnostics and a short held-out model-driven backtest, but they remain exploratory.
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.

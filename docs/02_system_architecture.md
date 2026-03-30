@@ -2,7 +2,7 @@
 
 ## Architectural Goal
 
-The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, and baseline evaluation reporting.
+The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, baseline evaluation reporting, modeling baselines, and a held-out model-driven backtest.
 
 ## Canonical Stage Flow
 
@@ -24,6 +24,8 @@ The system is organized as a stage-based research pipeline with explicit inputs,
    Write the human-readable report and append the experiment registry.
 9. `src.models`
    Add chronology-safe baselines only after deterministic baselines exist.
+10. `src.models`
+   Convert held-out model scores into cross-sectional rankings and run a model-driven backtest.
 
 ## Implemented Raw-To-Report Flow
 
@@ -112,6 +114,27 @@ Deterministic sample raw files are included in the repo so the implemented stage
 4. render `outputs/reports/strategy_report.md`
 5. append one record to `outputs/reports/experiment_registry.jsonl`
 
+### Modeling Stage
+
+`src.run_modeling_baselines` performs:
+
+1. read `feature_panel`, `monthly_panel`, and optional deterministic signal context
+2. build future labels aligned to month-end `t` features and realized month-end `t+1` outcomes
+3. assign rows into configured train, validation, and test windows
+4. fit preprocessing on training rows only
+5. fit the configured baseline model
+6. write train/test predictions, feature importance, and model metadata
+
+### Model-Driven Backtest Stage
+
+`src.run_model_backtest` performs:
+
+1. read held-out `test_predictions`, `model_metadata`, `monthly_panel`, and `benchmarks_monthly`
+2. convert held-out model scores into monthly top-N ranking selections
+3. reuse the shared backtest holdings, trades, returns, metrics, and QC modules
+4. write model-specific backtest artifacts under `outputs/backtests/model_*`
+5. append one exploratory model-backtest record to the experiment registry
+
 ## Implemented Module Responsibilities
 
 | Module | Responsibility |
@@ -132,6 +155,13 @@ Deterministic sample raw files are included in the repo so the implemented stage
 | `src.evaluation.summary` | structured benchmark-aware evaluation summaries |
 | `src.reporting.markdown` | strategy report rendering |
 | `src.reporting.registry` | experiment-record creation and JSONL append |
+| `src.models.config` | modeling-stage config loading and logging setup |
+| `src.models.labels` | forward-return label construction |
+| `src.models.datasets` | chronology-safe modeling dataset assembly |
+| `src.models.preprocessing` | train-only preprocessing pipeline |
+| `src.models.baselines` | baseline model fitting, scoring, and importance export |
+| `src.models.evaluation` | split-level classification diagnostics |
+| `src.models.backtest` | held-out model score ranking and model-backtest summaries |
 
 ## Design Rules In Force
 
@@ -142,13 +172,13 @@ Deterministic sample raw files are included in the repo so the implemented stage
 - Backtest holdings formed at month-end `t` only earn returns recorded at month-end `t+1`.
 - Transaction costs are explicit and config-driven.
 - Reports must include benchmark context and bias caveats.
-- Numeric feature imputation is intentionally not implemented.
+- Train-only numeric model preprocessing is implemented, but feature-generation-stage imputation remains intentionally disabled.
 - Point-in-time-safe fundamentals are not claimed; the current lag rule is a bias control, not a complete solution.
 
 ## Immediate Next Boundary
 
-The next critical path is `src.models`:
+The next critical path is expanding the model path:
 
-- add chronology-safe deterministic and ML baseline runners
-- compare models against the documented deterministic signal baseline
-- preserve walk-forward, leakage-safe evaluation
+- add walk-forward or expanding-window multi-window model backtests
+- add model-aware reporting comparable to the deterministic evaluation workflow
+- preserve leakage-safe chronology as model evaluation broadens

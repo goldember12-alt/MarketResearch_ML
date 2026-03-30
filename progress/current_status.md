@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, and initial modeling baselines are implemented for the local-file-first workflow
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, modeling baselines, and an initial held-out model-driven backtest are implemented for the local-file-first workflow
 
 ## What Is Completed
 
@@ -27,7 +27,7 @@
 - `src.reporting` includes:
   - markdown strategy-report rendering
   - experiment-registry record creation
-  - JSONL append logic for meaningful evaluation-report and modeling-baseline runs
+  - JSONL append logic for meaningful evaluation-report, modeling-baseline, and model-backtest runs
 - `src.models` includes:
   - config loading for the modeling stage
   - forward-label construction from the monthly panel
@@ -36,6 +36,8 @@
   - train-only median-imputation and scaling preprocessing
   - logistic-regression and random-forest baseline runners
   - split-level classification metrics and compact QC metadata
+  - held-out model-score ranking conversion for backtesting
+  - model-driven backtest summary and experiment-registry record construction
 - `src.run_evaluation_report.py` reads the backtest outputs and writes:
   - `outputs/reports/strategy_report.md`
   - `outputs/reports/experiment_registry.jsonl`
@@ -44,6 +46,15 @@
   - `outputs/models/test_predictions.parquet`
   - `outputs/models/model_metadata.json`
   - `outputs/models/feature_importance.csv`
+- `src.run_model_backtest.py` reads held-out model predictions and writes:
+  - `outputs/models/model_signal_rankings.parquet`
+  - `outputs/backtests/model_holdings_history.parquet`
+  - `outputs/backtests/model_trade_log.parquet`
+  - `outputs/backtests/model_portfolio_returns.parquet`
+  - `outputs/backtests/model_benchmark_returns.parquet`
+  - `outputs/backtests/model_performance_by_period.csv`
+  - `outputs/backtests/model_risk_metrics_summary.csv`
+  - `outputs/backtests/model_backtest_summary.json`
 
 ## Testing Status
 
@@ -56,12 +67,17 @@
   - random-forest baseline output shape
   - feature-importance export
   - final-month missing-label handling
+- Focused model-backtest tests were added for:
+  - held-out split filtering
+  - model-score ranking and top-N selection
+- `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
   - `src.run_evaluation_report`
   - `src.run_modeling_baselines`
   - `src.run_logistic_regression`
   - `src.run_random_forest`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `46 passed` on 2026-03-29.
+  - `src.run_model_backtest`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `49 passed` on 2026-03-29.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -76,12 +92,18 @@
   - `test_predictions.parquet`: validation and test rows present with split indicators
   - `model_metadata.json`: label definition, split windows, preprocessing fit window, metrics, dropped-row summary, and caveats present
   - `feature_importance.csv`: importance export present for the fitted model
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest` completed successfully on 2026-03-29.
+- Resulting model-driven backtest artifacts were manually checked:
+  - `model_signal_rankings.parquet`: held-out prediction rows ranked cross-sectionally by model score
+  - `model_portfolio_returns.parquet`: realized model-driven returns aligned to the explicit `t+1` realized dates
+  - `model_risk_metrics_summary.csv`: portfolio and benchmark metrics present
+  - `model_backtest_summary.json`: model type, prediction splits used, shared backtest metrics, and caveats present
 - Previous manual verification for `src.run_backtest` remains valid:
   - the backtest outputs used by reporting and modeling comparison context were present and aligned before the modeling run
 
 ## Immediate Next Step
 
-- Route model scores into a model-driven portfolio construction and backtest path so the baseline models can be evaluated under the same benchmark, turnover, and reporting controls as the deterministic strategy.
+- Expand the current short held-out model backtest into walk-forward multi-window evaluation and add model-aware reporting comparable to the deterministic strategy report.
 
 ## Known Risks / Open Issues
 
@@ -90,7 +112,7 @@
 - Fundamentals-derived features and signals therefore still carry revised-history bias risk.
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
-- The current modeling stage is prediction-diagnostic only; model-driven holdings and portfolio evaluation are still deferred.
+- The current model-driven backtest only spans the available held-out validation/test window, so realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.
 - Reporting is now implemented, but richer regime diagnostics and attribution are still deferred.
 
@@ -119,10 +141,18 @@
 - `outputs/backtests/backtest_summary.json`
 - `outputs/backtests/performance_by_period.csv`
 - `outputs/backtests/risk_metrics_summary.csv`
+- `outputs/backtests/model_holdings_history.parquet`
+- `outputs/backtests/model_trade_log.parquet`
+- `outputs/backtests/model_portfolio_returns.parquet`
+- `outputs/backtests/model_benchmark_returns.parquet`
+- `outputs/backtests/model_backtest_summary.json`
+- `outputs/backtests/model_performance_by_period.csv`
+- `outputs/backtests/model_risk_metrics_summary.csv`
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 - `outputs/models/train_predictions.parquet`
 - `outputs/models/test_predictions.parquet`
 - `outputs/models/model_metadata.json`
 - `outputs/models/feature_importance.csv`
+- `outputs/models/model_signal_rankings.parquet`
 - `outputs/paper_trading/`

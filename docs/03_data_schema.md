@@ -478,6 +478,106 @@ Structure:
 - compact QC summary
 - artifact paths, caveats, and next recommended implementation step
 
+### `outputs/models/model_signal_rankings.parquet`
+
+Primary key:
+
+- `ticker`, `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| held-out prediction columns | mixed | inherited from `outputs/models/test_predictions.parquet` |
+| `composite_score` | float | model score reused as the portfolio ranking score |
+| `score_rank` | float | within-month model-score rank, 1 is best |
+| `score_rank_pct` | float | `score_rank / row_count` within the month |
+| `selected_top_n` | bool | whether the name falls inside configured top-N selection for the model-driven backtest |
+
+### `outputs/backtests/model_holdings_history.parquet`
+
+Primary key:
+
+- `date`, `ticker`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| same schema as `outputs/backtests/holdings_history.parquet` | mixed | model-driven holdings formed from held-out model rankings |
+
+### `outputs/backtests/model_trade_log.parquet`
+
+Primary key:
+
+- `rebalance_date`, `ticker`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| same schema as `outputs/backtests/trade_log.parquet` | mixed | trade log for the model-driven backtest |
+
+### `outputs/backtests/model_portfolio_returns.parquet`
+
+Primary key:
+
+- `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| same schema as `outputs/backtests/portfolio_returns.parquet` | mixed | realized model-driven portfolio returns |
+
+### `outputs/backtests/model_benchmark_returns.parquet`
+
+Primary key:
+
+- `benchmark_ticker`, `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| same schema as `outputs/backtests/benchmark_returns.parquet` | mixed | benchmark returns aligned to the model-driven portfolio dates |
+
+### `outputs/backtests/model_performance_by_period.csv`
+
+Primary key:
+
+- `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| same schema as `outputs/backtests/performance_by_period.csv` | mixed | model-driven per-period portfolio and benchmark comparison table |
+
+### `outputs/backtests/model_risk_metrics_summary.csv`
+
+Primary key:
+
+- `series_id`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| same schema as `outputs/backtests/risk_metrics_summary.csv` | mixed | risk metrics for the model-driven portfolio and aligned benchmarks |
+
+### `outputs/backtests/model_backtest_summary.json`
+
+Structure:
+
+- shared backtest summary fields from the deterministic backtest
+- model type
+- model label definition
+- prediction score column used for ranking
+- held-out prediction splits used for portfolio formation
+- compact QC summary
+- caveats and next recommended implementation step
+
 ## QC Artifacts
 
 ### Data-Stage QC
@@ -508,6 +608,10 @@ Backtest QC currently lives inside `outputs/backtests/backtest_summary.json` and
 - realized missing-return policy and count
 - max holdings-plus-cash weight deviation from `1.0`
 - min and max cash weight across rebalances
+
+The model-driven backtest writes the same QC structure inside:
+
+- `outputs/backtests/model_backtest_summary.json`
 
 ### Reporting-Stage Outputs
 

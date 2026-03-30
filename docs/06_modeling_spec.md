@@ -4,7 +4,7 @@
 
 Modeling is a later but first-class stage that begins only after the deterministic feature, signal, backtest, and reporting workflow is in place.
 
-The implemented baseline modeling stage is label-diagnostic and prediction-oriented. It does not yet convert model scores into portfolio holdings or model-driven backtest results.
+The implemented baseline modeling stage now extends into a held-out model-driven backtest, but only for the currently available validation/test prediction window. It is still exploratory.
 
 ## Implemented Baseline Runners
 
@@ -17,6 +17,7 @@ Runner behavior:
 - `src.run_modeling_baselines` writes the configured `execution.selected_model` run to the canonical model output paths
 - `src.run_logistic_regression` writes a logistic-regression run to those same canonical paths
 - `src.run_random_forest` writes a random-forest run to those same canonical paths
+- `src.run_model_backtest` reads the current canonical held-out model predictions and writes separate `model_*` backtest artifacts
 
 ## Implemented Label Definition
 
@@ -34,7 +35,7 @@ Exact convention:
 - `forward_excess_return = monthly_return(t+1) - benchmark_return(t+1)`
 - the binary label is `1` when the ticker ranks inside the top `10` future benchmark-relative returns across the decision-month cross-section, else `0`
 
-This label is chosen because it aligns with the repo’s canonical early-stage portfolio task: cross-sectional ranking and top-N selection.
+This label is chosen because it aligns with the repo's canonical early-stage portfolio task: cross-sectional ranking and top-N selection.
 
 Supported but not default label types:
 
@@ -197,13 +198,26 @@ Successful modeling runs append a cautious exploratory record to:
 
 These records are not model-driven backtest claims. They document the label, feature set, split window, fitted model, and held-out classification diagnostics only.
 
+## Model-Driven Backtest Extension
+
+The current repo now supports a held-out model-driven backtest with these rules:
+
+- source predictions come from `outputs/models/test_predictions.parquet`
+- only configured held-out splits are eligible for portfolio formation, currently `validation` and `test`
+- `predicted_probability` is reused as the ranking score
+- the shared backtest engine applies the same top-N selection, weighting, turnover, cost, and benchmark logic used by the deterministic baseline
+- outputs are written to separate `model_*` artifacts under `outputs/backtests/`
+
+Current limitation:
+
+- the present sample only yields a short held-out realized window, so this stage is useful for plumbing verification and preliminary comparison only
+
 ## Deferred Work
 
-Still deferred after this baseline stage:
+Still deferred after this stage:
 
 - walk-forward or expanding-window multi-fold validation
-- model-driven score-to-portfolio conversion
-- model-driven backtests under the same transaction cost assumptions
+- broader model-driven backtests across longer history
 - richer benchmark-relative attribution and reporting
 - hyperparameter search beyond simple baselines
 - any deep learning model family

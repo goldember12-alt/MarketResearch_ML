@@ -258,3 +258,26 @@ def test_empty_selected_month_becomes_cash_only_period() -> None:
     assert march_snapshot["cash_weight"] == pytest.approx(1.0)
     assert april_period["holding_count"] == 0
     assert april_period["portfolio_gross_return"] == pytest.approx(0.0)
+
+
+def test_build_holdings_history_uses_explicit_realized_label_date_when_present() -> None:
+    """Explicit realized-label dates should override next-ranking-date inference."""
+    sparse_rankings = _signal_rankings_fixture().loc[
+        _signal_rankings_fixture()["date"].isin(
+            [pd.Timestamp("2024-01-31"), pd.Timestamp("2024-03-31")]
+        )
+    ].copy()
+    sparse_rankings["realized_label_date"] = sparse_rankings["date"] + pd.offsets.MonthEnd(1)
+
+    holdings_history, rebalance_summary = build_holdings_history(
+        sparse_rankings,
+        _build_config(),
+    )
+
+    january = holdings_history.loc[holdings_history["date"] == pd.Timestamp("2024-01-31")]
+    january_summary = rebalance_summary.loc[
+        rebalance_summary["rebalance_date"] == pd.Timestamp("2024-01-31")
+    ].iloc[0]
+
+    assert january["holding_period_end"].unique().tolist() == [pd.Timestamp("2024-02-29")]
+    assert january_summary["realized_date"] == pd.Timestamp("2024-02-29")

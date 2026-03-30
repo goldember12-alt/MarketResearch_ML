@@ -4,7 +4,7 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The deterministic baseline workflow is now implemented through evaluation reporting, and the initial modeling-baselines stage is now implemented:
+The deterministic baseline workflow is now implemented through evaluation reporting, and the modeling path now extends through a held-out model-driven backtest:
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
@@ -12,7 +12,7 @@ The deterministic baseline workflow is now implemented through evaluation report
 - `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, and benchmark comparisons
 - `src.evaluation` builds a benchmark-aware summary from the backtest artifacts
 - `src.reporting` writes a human-readable strategy report and appends an experiment-registry record
-- `src.models` builds leakage-safe labels, chronological splits, train-only preprocessing, baseline classifiers, and model metadata artifacts
+- `src.models` builds leakage-safe labels, chronological splits, train-only preprocessing, baseline classifiers, model metadata artifacts, held-out model score rankings, and model-driven backtest outputs
 
 No benchmark-quality research conclusion, live-trading claim, or out-of-sample ML claim is included.
 
@@ -95,6 +95,17 @@ Modeling artifacts:
 - `outputs/models/test_predictions.parquet`
 - `outputs/models/model_metadata.json`
 - `outputs/models/feature_importance.csv`
+- `outputs/models/model_signal_rankings.parquet`
+
+Model-driven backtest artifacts:
+
+- `outputs/backtests/model_holdings_history.parquet`
+- `outputs/backtests/model_trade_log.parquet`
+- `outputs/backtests/model_portfolio_returns.parquet`
+- `outputs/backtests/model_benchmark_returns.parquet`
+- `outputs/backtests/model_backtest_summary.json`
+- `outputs/backtests/model_performance_by_period.csv`
+- `outputs/backtests/model_risk_metrics_summary.csv`
 
 ## Config Foundation
 
@@ -160,6 +171,15 @@ Modeling-stage rules:
 - the current main runner writes the configured selected model to the canonical model artifact paths, while model-specific CLIs overwrite those same canonical paths for their own run
 - modeling runs append a cautious exploratory record to `outputs/reports/experiment_registry.jsonl`
 
+Model-driven backtest rules:
+
+- `src.run_model_backtest` reads held-out model predictions from `outputs/models/test_predictions.parquet`
+- only the configured held-out splits are eligible for portfolio formation, currently `validation` and `test`
+- model scores are ranked cross-sectionally within each decision month using `predicted_probability`
+- the model backtest reuses the same holdings, turnover, cost, benchmark, and metric logic as the deterministic baseline
+- when explicit realized label dates are available, they override next-ranking-date inference so sparse held-out prediction months still map correctly to realized `t+1` returns
+- model-driven backtest outputs are written to separate `model_*` artifacts under `outputs/backtests/`
+
 Important caveat:
 
 - Point-in-time-safe fundamentals are still not solved. Lagged fundamentals and fundamentals-derived signals therefore still carry revised-history bias risk.
@@ -220,6 +240,12 @@ Run random forest explicitly:
 .\.venv\Scripts\python.exe -m src.run_random_forest
 ```
 
+Run the held-out model-driven backtest:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_model_backtest
+```
+
 Full deterministic baseline pipeline:
 
 ```powershell
@@ -239,6 +265,7 @@ End-to-end through the default modeling runner:
 .\.venv\Scripts\python.exe -m src.run_feature_generation
 .\.venv\Scripts\python.exe -m src.run_signal_generation
 .\.venv\Scripts\python.exe -m src.run_modeling_baselines
+.\.venv\Scripts\python.exe -m src.run_model_backtest
 ```
 
 Recommended interpreter:
@@ -262,11 +289,12 @@ Manual verification completed on 2026-03-28:
 Manual verification completed on 2026-03-29:
 
 - `.\.venv\Scripts\python.exe -m src.run_modeling_baselines`
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest`
 
 Current automated status on 2026-03-29:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `46 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `49 passed`
 
 ## Best Next Step
 
-Route model scores into model-driven portfolio construction and backtesting under the same benchmark, turnover, and reporting controls already used for the deterministic baseline.
+Extend the current single-window held-out model backtest into walk-forward multi-window model evaluation and add model-aware reporting comparable to the deterministic strategy report.
