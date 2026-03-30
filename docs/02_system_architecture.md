@@ -2,7 +2,7 @@
 
 ## Architectural Goal
 
-The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, and an aggregated out-of-sample model-driven backtest.
+The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, an aggregated out-of-sample model-driven backtest, and a mode-aware longer-history research execution path.
 
 ## Canonical Stage Flow
 
@@ -46,6 +46,12 @@ Supported formats:
 
 Deterministic sample raw files are included in the repo so the implemented stages are runnable without external connectors.
 
+Execution-mode contract:
+
+- default `seeded` mode reads only sample-tagged raw files and preserves the current verification path
+- `research_scale` mode prefers broader non-sample local raw files in the documented raw-data directories
+- when broader local raw files are absent, `research_scale` falls back to the sample-tagged files and records that fallback in the QC/reporting artifacts
+
 ### Data Stage
 
 `src.run_data_ingestion` performs:
@@ -57,6 +63,7 @@ Deterministic sample raw files are included in the repo so the implemented stage
 5. derive `equal_weight_universe`
 6. standardize fundamentals, apply a conservative effective lag, and map them onto the monthly calendar
 7. write processed Parquet artifacts and dataset QC summaries
+8. record the raw-file selection manifest inside the dataset QC summaries so longer-history runs are auditable
 
 ### Panel Stage
 
@@ -105,6 +112,7 @@ Deterministic sample raw files are included in the repo so the implemented stage
 6. apply next-period realized security returns, then subtract configured turnover-based costs
 7. align explicit benchmark returns to the same realized months
 8. write holdings, trades, return series, period comparisons, risk metrics, and a JSON summary
+9. include backtest coverage counts such as realized-month count and unique held tickers in the JSON summary
 
 ### Evaluation And Reporting Stage
 
@@ -114,7 +122,8 @@ Deterministic sample raw files are included in the repo so the implemented stage
 2. combine them with current signal and backtest config context
 3. build a benchmark-aware exploratory evaluation summary with required caveats
 4. render `outputs/reports/strategy_report.md`
-5. append one record to `outputs/reports/experiment_registry.jsonl`
+5. write `outputs/reports/run_summary.json` with raw-data selection and stage-level coverage
+6. append one record to `outputs/reports/experiment_registry.jsonl`
 
 ### Modeling Stage
 
@@ -143,17 +152,20 @@ Deterministic sample raw files are included in the repo so the implemented stage
 `src.run_model_evaluation_report` performs:
 
 1. read `model_metadata`, aggregated held-out `test_predictions`, deterministic `performance_by_period`, `model_backtest_summary`, and model return artifacts
-2. combine out-of-sample classification diagnostics with model-driven backtest metrics, held-out fold coverage, overlap-aware deterministic-baseline comparison metrics, and overlap-window regime/subperiod breakdowns
+2. combine out-of-sample classification diagnostics with model-driven backtest metrics, held-out fold coverage, overlap-aware deterministic-baseline comparison metrics, cross-stage coverage summaries, and overlap-window regime/subperiod breakdowns
 3. render `outputs/reports/model_strategy_report.md`
-4. write `outputs/reports/model_comparison_summary.json`
-5. write `outputs/reports/model_subperiod_comparison.csv`
-6. append one model-aware exploratory record to `outputs/reports/experiment_registry.jsonl`
+4. write `outputs/reports/run_summary.json`
+5. write `outputs/reports/model_comparison_summary.json`
+6. write `outputs/reports/model_subperiod_comparison.csv`
+7. append one model-aware exploratory record to `outputs/reports/experiment_registry.jsonl`
 
 ## Implemented Module Responsibilities
 
 | Module | Responsibility |
 | --- | --- |
 | `src.data.*` | ingestion, standardization, panel assembly, QC |
+| `config/execution.yaml` | execution-mode settings for seeded versus research-scale raw-file selection |
+| `config/evaluation.yaml` | segment-evidence thresholds and structured regime/subperiod settings |
 | `src.features.config` | feature-stage config loading and logging setup |
 | `src.features.engineering` | lagged and rolling feature calculations |
 | `src.features.qc` | feature QC and missingness outputs |
@@ -167,6 +179,7 @@ Deterministic sample raw files are included in the repo so the implemented stage
 | `src.backtest.metrics` | cumulative returns and risk metric calculations |
 | `src.backtest.qc` | backtest validation and QC summaries |
 | `src.evaluation.summary` | structured benchmark-aware evaluation summaries |
+| `src.evaluation.coverage` | cross-stage coverage audits and top-level run-summary artifacts |
 | `src.reporting.markdown` | strategy report rendering |
 | `src.reporting.registry` | experiment-record creation and JSONL append |
 | `src.models.config` | modeling-stage config loading and logging setup |
@@ -187,13 +200,14 @@ Deterministic sample raw files are included in the repo so the implemented stage
 - Backtest holdings formed at month-end `t` only earn returns recorded at month-end `t+1`.
 - Transaction costs are explicit and config-driven.
 - Reports must include benchmark context and bias caveats.
+- Reports must also surface whether a research-scale run actually used broader raw files or only sample fallback.
 - Train-only numeric model preprocessing is implemented, but feature-generation-stage imputation remains intentionally disabled.
 - Point-in-time-safe fundamentals are not claimed; the current lag rule is a bias control, not a complete solution.
 
 ## Immediate Next Boundary
 
-The next critical path is improving interpretation around the expanded model path:
+The next critical path is moving from the seeded verification path to materially longer-history research evidence:
 
-- add model-aware reporting comparable to the deterministic evaluation workflow
-- extend walk-forward evaluation over longer and richer research history
-- add broader robustness diagnostics while preserving leakage-safe chronology
+- add broader local raw-history coverage under the documented directories
+- rerun the new `research_scale` path on that broader coverage
+- evaluate the richer segment diagnostics over enough overlap history to move beyond the current insufficient-history tier

@@ -11,6 +11,7 @@ from src.evaluation.comparison import (
     build_overlap_subperiod_diagnostics,
     build_model_vs_deterministic_overlap_summary,
 )
+from src.utils.config import load_project_config
 
 
 def test_build_model_vs_deterministic_overlap_summary_uses_only_shared_realized_dates() -> None:
@@ -158,6 +159,7 @@ def test_build_overlap_subperiod_diagnostics_groups_by_fold_and_regime() -> None
         deterministic_performance_by_period=deterministic,
         model_performance_by_period=model,
         test_predictions=test_predictions,
+        evaluation_config=load_project_config().evaluation,
         primary_benchmark="SPY",
     )
 
@@ -166,6 +168,8 @@ def test_build_overlap_subperiod_diagnostics_groups_by_fold_and_regime() -> None
     assert diagnostics["distinct_benchmark_regimes"] == ["benchmark_down", "benchmark_up"]
     assert diagnostics["segment_counts_by_type"]["fold_id"] == 2
     assert diagnostics["segment_counts_by_type"]["benchmark_direction"] == 2
+    assert diagnostics["segment_counts_by_type"]["calendar_half_year"] == 1
+    assert diagnostics["segment_counts_by_type"]["calendar_year"] == 1
     fold_segment = next(
         segment
         for segment in diagnostics["segments"]
@@ -173,6 +177,7 @@ def test_build_overlap_subperiod_diagnostics_groups_by_fold_and_regime() -> None
     )
     assert fold_segment["period_count"] == 1
     assert fold_segment["coverage_share_of_overlap"] == 0.5
+    assert fold_segment["evidence_level"] == "insufficient_segment_history"
     regime_segment = next(
         segment
         for segment in diagnostics["segments"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 import shutil
+from uuid import uuid4
 
 import pandas as pd
 import pytest
@@ -12,9 +13,11 @@ import pytest
 from src.data.benchmarks import build_equal_weight_benchmark
 from src.data.config import RawDataPaths, load_data_pipeline_config
 from src.data.fundamentals_data import build_fundamentals_monthly
+from src.data.io import build_raw_file_selection_manifest, select_input_files
 from src.data.market_data import standardize_price_history
 from src.data.panel_assembly import assemble_monthly_panel, validate_one_row_per_ticker_per_month
 from src.data.standardize import assert_unique_keys, find_duplicate_keys
+from src.utils.config import load_project_config
 
 
 def test_monthly_resampling_logic_uses_last_observation_per_month() -> None:
@@ -183,6 +186,7 @@ def test_fundamentals_to_month_merge_uses_effective_lag_rule() -> None:
         ),
         project=replace(
             config.project,
+            execution=load_project_config(execution_mode="research_scale").execution,
             universe=replace(
                 config.project.universe,
                 tech_tickers=("AAA",),
@@ -225,3 +229,51 @@ def test_equal_weight_benchmark_averages_constituent_returns() -> None:
 
     assert equal_weight.loc[1, "monthly_return"] == pytest.approx(0.10)
     assert equal_weight.loc[1, "adjusted_close"] == pytest.approx(110.0)
+
+
+def test_research_scale_raw_file_selection_prefers_non_sample_files() -> None:
+    """Research-scale mode should prefer broader non-sample files when they exist locally."""
+    raw_dir = REPO_ROOT / ".tmp" / f"research_scale_prefers_{uuid4().hex}" / "market"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        (raw_dir / "prices_daily_sample.csv").write_text(
+            "ticker,date,adjusted_close\n",
+            encoding="utf-8",
+        )
+        (raw_dir / "prices_daily_full.csv").write_text(
+            "ticker,date,adjusted_close\n",
+            encoding="utf-8",
+        )
+
+        execution = load_project_config(execution_mode="research_scale").execution
+        selected = select_input_files(raw_dir, ("*.csv",), execution=execution)
+        manifest = build_raw_file_selection_manifest(raw_dir, ("*.csv",), execution=execution)
+
+        assert [path.name for path in selected] == ["prices_daily_full.csv"]
+        assert manifest.selected_source_kind == "broader_local_raw"
+        assert manifest.broader_raw_files_available is True
+        assert manifest.used_seeded_sample_fallback is False
+    finally:
+        shutil.rmtree(raw_dir.parent, ignore_errors=True)
+
+
+def test_research_scale_raw_file_selection_falls_back_to_sample_files() -> None:
+    """Research-scale mode should degrade gracefully to the seeded sample files when needed."""
+    raw_dir = REPO_ROOT / ".tmp" / f"research_scale_fallback_{uuid4().hex}" / "market"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        (raw_dir / "prices_daily_sample.csv").write_text(
+            "ticker,date,adjusted_close\n",
+            encoding="utf-8",
+        )
+
+        execution = load_project_config(execution_mode="research_scale").execution
+        selected = select_input_files(raw_dir, ("*.csv",), execution=execution)
+        manifest = build_raw_file_selection_manifest(raw_dir, ("*.csv",), execution=execution)
+
+        assert [path.name for path in selected] == ["prices_daily_sample.csv"]
+        assert manifest.selected_source_kind == "seeded_sample_fallback"
+        assert manifest.broader_raw_files_available is False
+        assert manifest.used_seeded_sample_fallback is True
+    finally:
+        shutil.rmtree(raw_dir.parent, ignore_errors=True)

@@ -222,6 +222,19 @@ def build_backtest_summary(
         ),
         "portfolio_period_count": int(len(portfolio_returns)),
         "benchmark_period_count": int(len(benchmark_returns)),
+        "coverage": {
+            "formation_month_count": int(portfolio_returns["formation_date"].nunique())
+            if not portfolio_returns.empty
+            else 0,
+            "realized_month_count": int(portfolio_returns["date"].nunique())
+            if not portfolio_returns.empty
+            else 0,
+            "unique_held_ticker_count": int(qc_summary.get("unique_held_ticker_count", 0)),
+            "average_selected_ticker_count": _json_safe_value(
+                qc_summary.get("average_selected_ticker_count")
+            ),
+            "max_selected_ticker_count": int(qc_summary.get("max_selected_ticker_count", 0)),
+        },
         "metrics_by_series": metrics_by_series,
         "qc": qc_summary,
     }

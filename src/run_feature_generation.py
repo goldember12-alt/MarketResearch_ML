@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from src.data.io import read_parquet_required, write_csv, write_json, write_parquet
 from src.features.config import configure_feature_logging, load_feature_pipeline_config
 from src.features.engineering import build_feature_panel
 from src.features.qc import build_feature_missingness_summary, build_feature_qc_summary
+from src.utils.cli import parse_execution_mode_args
 from src.utils.config import ensure_output_directories
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Generate leakage-safe monthly features from the canonical panel."""
-    config = load_feature_pipeline_config()
+    args = parse_execution_mode_args(argv)
+    config = load_feature_pipeline_config(execution_mode=args.execution_mode)
     configure_feature_logging(config)
     ensure_output_directories(config.project)
 
@@ -50,4 +53,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

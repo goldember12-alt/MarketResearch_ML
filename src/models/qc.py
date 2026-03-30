@@ -112,9 +112,14 @@ def build_qc_summary(
     deterministic_baseline_available: bool,
 ) -> dict[str, Any]:
     """Build a compact QC summary for model metadata."""
+    eligible_decision_month_count = int(dataset["date"].nunique())
+    eligible_realized_month_count = int(dataset["realized_label_date"].nunique())
     return {
         "eligible_row_count": int(len(dataset)),
-        "eligible_unique_dates": int(dataset["date"].nunique()),
+        "eligible_unique_dates": eligible_decision_month_count,
+        "eligible_decision_month_count": eligible_decision_month_count,
+        "eligible_realized_month_count": eligible_realized_month_count,
+        "eligible_unique_ticker_count": int(dataset["ticker"].nunique()),
         "eligible_positive_labels": int(dataset["true_label"].astype(int).sum()),
         "eligible_decision_date_range": {
             "decision_start": dataset["date"].min().date().isoformat(),

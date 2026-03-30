@@ -16,7 +16,7 @@ from src.evaluation.comparison import (
 )
 from src.models.config import ModelPipelineConfig
 from src.signals.config import SignalPipelineConfig
-from src.utils.config import ProjectConfig
+from src.utils.config import EvaluationConfig, ProjectConfig
 
 
 def _metrics_lookup(risk_metrics_summary: pd.DataFrame) -> dict[str, dict[str, Any]]:
@@ -104,6 +104,38 @@ def _bias_caveats() -> list[str]:
     ]
 
 
+def _coverage_evidence_label(
+    period_count: int,
+    *,
+    evaluation_config: EvaluationConfig,
+) -> str:
+    """Classify available overlap history into a simple report-evidence tier."""
+    if period_count < evaluation_config.evidence.minimum_months_for_descriptive_segment:
+        return "insufficient_segment_history"
+    if period_count < evaluation_config.evidence.minimum_months_for_broader_coverage_segment:
+        return "descriptive_segment_evidence"
+    return "broader_coverage_exploratory_evidence"
+
+
+def _build_evidence_context(
+    *,
+    evaluation_config: EvaluationConfig,
+    overlap_period_count: int | None = None,
+) -> dict[str, Any]:
+    """Build a concise evidence-tier summary for downstream reports and registries."""
+    if overlap_period_count is None:
+        overlap_period_count = 0
+    return {
+        "minimum_months_for_descriptive_segment": evaluation_config.evidence.minimum_months_for_descriptive_segment,
+        "minimum_months_for_broader_coverage_segment": evaluation_config.evidence.minimum_months_for_broader_coverage_segment,
+        "overlap_period_count": overlap_period_count,
+        "coverage_evidence_level": _coverage_evidence_label(
+            overlap_period_count,
+            evaluation_config=evaluation_config,
+        ),
+    }
+
+
 def _model_risk_controls() -> list[str]:
     """Return the currently implemented model-path risk controls."""
     return [
@@ -134,6 +166,7 @@ def build_evaluation_summary(
     portfolio_returns: pd.DataFrame,
     performance_by_period: pd.DataFrame,
     risk_metrics_summary: pd.DataFrame,
+    stage_coverage: dict[str, Any],
 ) -> dict[str, Any]:
     """Build a report-ready summary from implemented backtest artifacts."""
     metrics_by_series = _metrics_lookup(risk_metrics_summary)
@@ -171,6 +204,7 @@ def build_evaluation_summary(
         "purpose": "Summarize the deterministic monthly backtest baseline and log a benchmark-aware exploratory run.",
         "status": "exploratory_completed",
         "universe_preset": project_config.universe.preset_name,
+        "execution_mode": project_config.execution.mode_name,
         "benchmark_set": list(backtest_config.benchmarks.identifiers),
         "feature_set": list(signal_config.features.all_features),
         "signal_or_model": signal_config.strategy.name,
@@ -216,8 +250,12 @@ def build_evaluation_summary(
         "risk_controls": _risk_controls(),
         "bias_caveats": _bias_caveats(),
         "qc_summary": backtest_summary.get("qc", {}),
+        "coverage_summary": stage_coverage,
+        "evidence_context": _build_evidence_context(
+            evaluation_config=project_config.evaluation,
+        ),
         "interpretation": interpretation,
-        "next_step": "Implement chronology-safe modeling baselines and compare them against the deterministic signal baseline.",
+        "next_step": "Run the chronology-safe model path on broader local raw coverage so overlap-aware robustness reporting has materially longer history.",
     }
 
 
@@ -233,6 +271,7 @@ def build_model_evaluation_summary(
     deterministic_performance_by_period: pd.DataFrame,
     risk_metrics_summary: pd.DataFrame,
     test_predictions: pd.DataFrame,
+    stage_coverage: dict[str, Any],
 ) -> dict[str, Any]:
     """Build a report-ready summary for the model-driven backtest and modeling diagnostics."""
     metrics_by_series = _metrics_lookup(risk_metrics_summary)
@@ -255,6 +294,7 @@ def build_model_evaluation_summary(
         deterministic_performance_by_period=deterministic_performance_by_period,
         model_performance_by_period=performance_by_period,
         test_predictions=test_predictions,
+        evaluation_config=project_config.evaluation,
         primary_benchmark=model_config.label.benchmark,
     )
 
@@ -307,6 +347,7 @@ def build_model_evaluation_summary(
         "purpose": "Summarize the model-driven backtest together with the current model's out-of-sample diagnostics and log an exploratory model evaluation run.",
         "status": "exploratory_completed",
         "universe_preset": project_config.universe.preset_name,
+        "execution_mode": project_config.execution.mode_name,
         "benchmark_set": list(backtest_config.benchmarks.identifiers),
         "feature_set": list(model_config.dataset.feature_columns),
         "signal_or_model": model_metadata["model_type"],
@@ -376,6 +417,13 @@ def build_model_evaluation_summary(
         "risk_controls": _model_risk_controls(),
         "bias_caveats": _model_bias_caveats(),
         "qc_summary": model_backtest_summary.get("qc", {}),
+        "coverage_summary": stage_coverage,
+        "evidence_context": _build_evidence_context(
+            evaluation_config=project_config.evaluation,
+            overlap_period_count=deterministic_baseline_overlap_comparison.get(
+                "overlap_period_count", 0
+            ),
+        ),
         "interpretation": interpretation,
         "next_step": "Extend realized history so the new subperiod and regime diagnostics can be evaluated over materially longer overlap windows.",
     }

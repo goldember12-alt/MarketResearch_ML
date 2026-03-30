@@ -105,10 +105,13 @@ class BacktestPipelineConfig:
         return self.project.outputs
 
 
-def load_backtest_pipeline_config(root_dir: Path | None = None) -> BacktestPipelineConfig:
+def load_backtest_pipeline_config(
+    root_dir: Path | None = None,
+    execution_mode: str | None = None,
+) -> BacktestPipelineConfig:
     """Load the deterministic backtest config bundle."""
     resolved_root = root_dir or repo_root()
-    project = load_project_config(resolved_root)
+    project = load_project_config(resolved_root, execution_mode=execution_mode)
 
     backtest_path = resolved_root / "config" / "backtest.yaml"
     logging_path = resolved_root / "config" / "logging.yaml"
@@ -160,6 +163,8 @@ def load_backtest_pipeline_config(root_dir: Path | None = None) -> BacktestPipel
         ),
         config_files={
             "backtest": backtest_path,
+            "execution": resolved_root / "config" / "execution.yaml",
+            "evaluation": resolved_root / "config" / "evaluation.yaml",
             "logging": logging_path,
             "paths": resolved_root / "config" / "paths.yaml",
             "signals": resolved_root / "config" / "signals.yaml",

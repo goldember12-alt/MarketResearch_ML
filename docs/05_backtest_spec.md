@@ -20,6 +20,11 @@ The repo now also supports an aggregated out-of-sample model-driven backtest tha
 - applies the same top-N, weighting, turnover, cost, and benchmark rules
 - writes separate `model_*` backtest artifacts so the deterministic baseline outputs remain intact
 
+Execution-mode note:
+
+- the seeded verification path remains the default
+- the optional `research_scale` execution mode is designed for the same backtest logic on longer local raw histories when those files are available upstream
+
 ## Inputs
 
 Required inputs:
@@ -172,6 +177,10 @@ Additional outputs written by the model-driven backtest stage:
 - `outputs/backtests/model_performance_by_period.csv`
 - `outputs/backtests/model_risk_metrics_summary.csv`
 
+Coverage-aware reporting outputs fed by backtest summaries:
+
+- `outputs/reports/run_summary.json`
+
 ## Metrics
 
 Implemented metrics:
@@ -205,6 +214,7 @@ Implemented validation checks:
 Current compact QC output:
 
 - embedded in `outputs/backtests/backtest_summary.json`
+- includes coverage counts such as formation months, realized months, average selected tickers, and unique held tickers
 
 ## Research Guardrails
 
@@ -214,3 +224,4 @@ Current compact QC output:
 - Exploratory runs must not be described as canonical benchmark results.
 - Fundamentals-derived inputs still inherit revised-history bias risk until true point-in-time data are introduced.
 - Aggregated out-of-sample model-driven backtests remain exploratory until they are extended over longer history and evaluated under the same reporting discipline as the deterministic baseline.
+- When the `research_scale` path falls back to sample-tagged raw files, downstream interpretation must still be treated as seeded-sample verification rather than longer-history evidence.

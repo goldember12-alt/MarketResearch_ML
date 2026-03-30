@@ -1,0 +1,14 @@
+default_mode: "seeded"
+
+raw_data_selection:
+  sample_file_token: "_sample"
+
+modes:
+  seeded:
+    description: "Verification path that reads only the packaged seeded sample raw files."
+    raw_file_policy: "sample_only"
+    allow_sample_fallback: false
+  research_scale:
+    description: "Research-scale path that prefers broader non-sample local raw files and falls back to the seeded sample files when broader raw coverage is not available."
+    raw_file_policy: "prefer_non_sample"
+    allow_sample_fallback: true

@@ -9,7 +9,7 @@ The implemented baseline modeling stage now supports both:
 - backward-compatible fixed date windows
 - expanding walk-forward multi-window evaluation that accumulates a deterministic out-of-sample prediction history
 
-The model-driven backtest consumes only the aggregated out-of-sample prediction artifact and remains exploratory because the current local sample history is still short.
+The model-driven backtest consumes only the aggregated out-of-sample prediction artifact and remains exploratory because the current local sample history is still short. The repo now also supports a `research_scale` execution mode so the same modeling path can be rerun on broader local raw coverage when those files are present.
 
 ## Implemented Baseline Runners
 
@@ -23,6 +23,7 @@ Runner behavior:
 - `src.run_logistic_regression` writes a logistic-regression run to those same canonical paths
 - `src.run_random_forest` writes a random-forest run to those same canonical paths
 - `src.run_model_backtest` reads the current canonical aggregated out-of-sample model predictions and writes separate `model_*` backtest artifacts
+- each runner now also accepts `--execution-mode research_scale` so longer local raw histories can flow through the same chronology-safe model path without changing the seeded default
 
 ## Implemented Label Definition
 
@@ -200,6 +201,7 @@ Current metadata includes:
 - preprocessing choices and fold-fit summary
 - model type and hyperparameters
 - eligible dataset summary and dropped-row summary
+- explicit eligible decision-month counts and unique eligible ticker counts
 - split-level classification metrics
 - aggregated out-of-sample classification metrics
 - deterministic baseline comparison context
@@ -257,13 +259,14 @@ The current repo now supports a multi-window model-driven backtest with these ru
 Current limitation:
 
 - the seeded sample still yields only a short realized model-backtest window, so this stage is useful for pipeline verification and exploratory comparison only
+- `research_scale` mode is ready for broader local raw histories, but if those files are absent it intentionally degrades to the sample-tagged raw files and the resulting evidence remains short-history exploratory output
 
 ## Deferred Work
 
 Still deferred after this stage:
 
-- longer-history walk-forward evaluation on richer research data
-- richer model-aware reporting and attribution
+- materially longer-history walk-forward evaluation on richer research data
+- stronger segment-level evidence once overlap history exceeds the configured reporting thresholds
 - broader robustness analysis across regimes and universes
 - hyperparameter search beyond simple baselines
 - any deep learning model family

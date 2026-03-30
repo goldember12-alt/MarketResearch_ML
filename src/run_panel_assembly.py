@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from src.data.config import configure_logging, load_data_pipeline_config
 from src.data.io import read_parquet_required, write_csv, write_json, write_parquet
@@ -12,12 +13,14 @@ from src.data.qc import (
     build_panel_qc_summary,
     build_ticker_coverage_summary,
 )
+from src.utils.cli import parse_execution_mode_args
 from src.utils.config import ensure_output_directories
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Assemble the canonical one-row-per-ticker-per-month panel."""
-    config = load_data_pipeline_config()
+    args = parse_execution_mode_args(argv)
+    config = load_data_pipeline_config(execution_mode=args.execution_mode)
     configure_logging(config)
     ensure_output_directories(config.project)
 
@@ -63,4 +66,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

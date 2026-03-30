@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import pandas as pd
 
@@ -13,12 +14,14 @@ from src.data.io import write_json, write_parquet
 from src.data.market_data import build_prices_monthly
 from src.data.qc import build_dataset_qc_summary
 from src.data.universe import validate_primary_benchmark
+from src.utils.cli import parse_execution_mode_args
 from src.utils.config import ensure_output_directories
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Run the local-file-first ingestion pipeline and persist standardized artifacts."""
-    config = load_data_pipeline_config()
+    args = parse_execution_mode_args(argv)
+    config = load_data_pipeline_config(execution_mode=args.execution_mode)
     configure_logging(config)
     ensure_output_directories(config.project)
     validate_primary_benchmark(config)
@@ -46,6 +49,9 @@ def main() -> int:
             dataset_name="benchmarks_monthly",
             id_column="benchmark_ticker",
             key_columns=["benchmark_ticker", "date"],
+            extra_metadata={
+                "derived_benchmarks_added": [config.processing.equal_weight_benchmark_id]
+            },
         ),
         config.outputs.benchmarks_qc_summary,
     )
@@ -77,4 +83,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

@@ -13,6 +13,7 @@ The implemented writers append a new JSON object line for every successful `src.
 - `experiment_id`
 - `run_timestamp`
 - `stage`
+- `execution_mode`
 - `purpose`
 - `date_range`
 - `universe_preset`
@@ -35,6 +36,7 @@ The implemented writers append a new JSON object line for every successful `src.
 - records the deterministic signal baseline and configured feature set
 - records benchmark-aware result summaries drawn from the implemented backtest artifacts
 - stores exploratory interpretations and next-step guidance alongside each run
+- stores the execution mode and current coverage context so seeded verification runs are distinguishable from future broader-history research runs
 - modeling-stage records mark the stage as `modeling_baselines`
 - modeling-stage records store the label definition, split scheme, fold count, out-of-sample date range, selected model, and classification diagnostics
 - modeling-stage records do not imply a model-driven backtest has been completed
@@ -43,7 +45,7 @@ The implemented writers append a new JSON object line for every successful `src.
 - model-aware reporting records mark the stage as `model_evaluation_report`
 - model-aware reporting records store out-of-sample model diagnostics, held-out fold coverage, the exact overlap comparison convention, and model-driven benchmark-aware backtest metrics
 - model-aware reporting records also store deterministic-vs-model overlap comparison metrics keyed only on shared realized dates
-- model-aware reporting records now also store overlap-window subperiod and regime diagnostics in `result_summary`
+- model-aware reporting records now also store overlap-window subperiod and regime diagnostics, cross-stage coverage summaries, and evidence-tier metadata in `result_summary`
 
 ## Tracking Rules
 

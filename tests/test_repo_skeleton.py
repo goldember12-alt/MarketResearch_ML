@@ -56,6 +56,8 @@ def test_config_files_parse_and_cover_expected_categories() -> None:
     config_files = {
         "backtest": REPO_ROOT / "config" / "backtest.yaml",
         "data": REPO_ROOT / "config" / "data.yaml",
+        "evaluation": REPO_ROOT / "config" / "evaluation.yaml",
+        "execution": REPO_ROOT / "config" / "execution.yaml",
         "features": REPO_ROOT / "config" / "features.yaml",
         "logging": REPO_ROOT / "config" / "logging.yaml",
         "model": REPO_ROOT / "config" / "model.yaml",
@@ -78,8 +80,11 @@ def test_project_config_matches_documented_defaults() -> None:
 
     assert config.universe.preset_name == "initial_large_cap_tech_plus_comparison"
     assert config.universe.frequency == "monthly"
+    assert config.execution.mode_name == "seeded"
     assert config.universe.explicit_benchmarks == ("SPY", "QQQ")
     assert config.universe.derived_benchmarks == ("equal_weight_universe",)
+    assert config.evaluation.evidence.minimum_months_for_descriptive_segment == 3
+    assert config.evaluation.evidence.minimum_months_for_broader_coverage_segment == 12
     assert len(config.universe.tech_tickers) == 10
     assert len(config.universe.comparison_tickers) == 10
     assert config.backtest.top_n == 10
@@ -96,6 +101,7 @@ def test_project_config_matches_documented_defaults() -> None:
         config.outputs.model_strategy_report
         == REPO_ROOT / "outputs" / "reports" / "model_strategy_report.md"
     )
+    assert config.outputs.run_summary == REPO_ROOT / "outputs" / "reports" / "run_summary.json"
     assert (
         config.outputs.model_comparison_summary
         == REPO_ROOT / "outputs" / "reports" / "model_comparison_summary.json"
@@ -128,6 +134,15 @@ def test_data_cli_entrypoints_return_success(capsys) -> None:
     assert panel.main() == 0
     captured = capsys.readouterr()
     assert "Panel assembly completed." in captured.out
+
+
+def test_data_ingestion_cli_supports_research_scale_mode(capsys) -> None:
+    """The research-scale execution mode should still run when only seeded sample files exist."""
+    ingestion = import_module("src.run_data_ingestion")
+
+    assert ingestion.main(["--execution-mode", "research_scale"]) == 0
+    captured = capsys.readouterr()
+    assert "Data ingestion completed." in captured.out
 
 
 def test_feature_cli_entrypoint_returns_success(capsys) -> None:
@@ -206,6 +221,7 @@ def test_evaluation_report_cli_entrypoint_returns_success(capsys) -> None:
     assert evaluation_report.main() == 0
     captured = capsys.readouterr()
     assert "Evaluation reporting completed." in captured.out
+    assert (REPO_ROOT / "outputs" / "reports" / "run_summary.json").exists()
 
 
 def test_modeling_cli_entrypoints_return_success(capsys) -> None:
@@ -248,5 +264,6 @@ def test_modeling_cli_entrypoints_return_success(capsys) -> None:
     assert model_evaluation_report.main() == 0
     captured = capsys.readouterr()
     assert "Model evaluation reporting completed." in captured.out
+    assert (REPO_ROOT / "outputs" / "reports" / "run_summary.json").exists()
     assert (REPO_ROOT / "outputs" / "reports" / "model_comparison_summary.json").exists()
     assert (REPO_ROOT / "outputs" / "reports" / "model_subperiod_comparison.csv").exists()

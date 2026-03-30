@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with exploratory subperiod diagnostics are implemented. The next milestone is longer-history robustness evaluation and richer attribution.
+The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with structured coverage diagnostics are implemented. The next milestone is longer-history robustness evaluation on broader local raw coverage.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -28,10 +28,12 @@ Delivered:
 
 - config-driven `src.data` ingestion modules
 - local raw file contract under `data/raw/market`, `data/raw/benchmarks`, and `data/raw/fundamentals`
+- config-driven seeded versus `research_scale` raw-file selection
 - standardized monthly price, benchmark, and fundamentals artifacts
 - deterministic equal-weight benchmark construction
 - canonical `outputs/data/monthly_panel.parquet`
 - data QC JSON outputs and coverage CSV outputs
+- raw-file selection manifests embedded inside the data QC summaries
 
 ## Phase 3: Deterministic Feature Layer
 
@@ -113,17 +115,19 @@ Delivered:
 - runnable `src.run_model_evaluation_report`
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/run_summary.json`
 - `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
 - overlap-aware deterministic-vs-model comparison on shared realized dates only
 - held-out fold coverage diagnostics in the model-aware report
-- overlap-window regime and subperiod diagnostics by fold, calendar bucket, and benchmark direction
+- overlap-window regime and subperiod diagnostics by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
+- structured evidence-tier labeling for insufficient-history versus broader-coverage exploratory segment comparisons
 
 Remaining work inside this phase:
 
 - richer benchmark-relative attribution
-- longer-history overlap comparison once the research sample is expanded
+- materially longer-history overlap comparison once broader local raw coverage is added
 
 ## Phase 7: Modeling Baselines
 

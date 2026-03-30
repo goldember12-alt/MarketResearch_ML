@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sys
 
 from src.backtest.config import configure_backtest_logging, load_backtest_pipeline_config
 from src.backtest.holdings import build_holdings_history
@@ -22,13 +23,18 @@ from src.models.backtest import (
 )
 from src.models.config import load_model_pipeline_config
 from src.reporting.registry import append_experiment_record
+from src.utils.cli import parse_execution_mode_args
 from src.utils.config import ensure_output_directories
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Run a held-out model-driven backtest using the current model predictions."""
-    model_config = load_model_pipeline_config()
-    backtest_config = load_backtest_pipeline_config(model_config.root_dir)
+    args = parse_execution_mode_args(argv)
+    model_config = load_model_pipeline_config(execution_mode=args.execution_mode)
+    backtest_config = load_backtest_pipeline_config(
+        model_config.root_dir,
+        execution_mode=args.execution_mode,
+    )
     configure_backtest_logging(backtest_config)
     ensure_output_directories(model_config.project)
 
@@ -126,4 +132,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

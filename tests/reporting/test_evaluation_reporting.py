@@ -9,6 +9,7 @@ from uuid import uuid4
 import pandas as pd
 
 from src.backtest.config import load_backtest_pipeline_config
+from src.evaluation.coverage import build_run_summary_artifact, build_stage_coverage_summary
 from src.evaluation.summary import build_evaluation_summary, build_model_evaluation_summary
 from src.models.config import load_model_pipeline_config
 from src.reporting.markdown import render_model_strategy_report, render_strategy_report
@@ -156,6 +157,18 @@ def _model_metadata_fixture() -> dict[str, object]:
             "score_column": "composite_score",
             "class_column": "selected_top_n",
         },
+        "eligible_dataset_summary": {
+            "eligible_row_count": 40,
+            "eligible_decision_month_count": 3,
+            "eligible_realized_month_count": 3,
+            "eligible_unique_ticker_count": 20,
+            "eligible_decision_date_range": {
+                "decision_start": "2024-02-29",
+                "decision_end": "2024-04-30",
+                "realized_start": "2024-03-31",
+                "realized_end": "2024-05-31",
+            },
+        },
     }
 
 
@@ -228,6 +241,107 @@ def _model_test_predictions_fixture() -> pd.DataFrame:
     )
 
 
+def _coverage_summary_fixture(project_config) -> dict[str, object]:
+    return build_stage_coverage_summary(
+        project_config=project_config,
+        prices_qc_summary={
+            "dataset_name": "prices_monthly",
+            "row_count": 60,
+            "unique_identifier_count": 20,
+            "unique_date_count": 3,
+            "min_date": "2024-01-31",
+            "max_date": "2024-03-31",
+            "raw_file_selection": {
+                "selected_source_kind": "seeded_sample_fallback",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": True,
+            },
+        },
+        fundamentals_qc_summary={
+            "dataset_name": "fundamentals_monthly",
+            "row_count": 60,
+            "unique_identifier_count": 20,
+            "unique_date_count": 3,
+            "min_date": "2024-01-31",
+            "max_date": "2024-03-31",
+            "raw_file_selection": {
+                "selected_source_kind": "seeded_sample_fallback",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": True,
+            },
+        },
+        benchmarks_qc_summary={
+            "dataset_name": "benchmarks_monthly",
+            "row_count": 9,
+            "unique_identifier_count": 3,
+            "unique_date_count": 3,
+            "min_date": "2024-01-31",
+            "max_date": "2024-03-31",
+            "raw_file_selection": {
+                "selected_source_kind": "seeded_sample_fallback",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": True,
+            },
+        },
+        panel_qc_summary={
+            "row_count": 60,
+            "unique_ticker_count": 20,
+            "unique_date_count": 3,
+            "min_date": "2024-01-31",
+            "max_date": "2024-03-31",
+        },
+        feature_qc_summary={
+            "row_count": 60,
+            "unique_ticker_count": 20,
+            "unique_date_count": 3,
+            "min_date": "2024-01-31",
+            "max_date": "2024-03-31",
+        },
+        signal_qc_summary={
+            "row_count": 60,
+            "unique_ticker_count": 20,
+            "unique_date_count": 3,
+            "fully_scored_row_count": 57,
+            "min_date": "2024-01-31",
+            "max_date": "2024-03-31",
+        },
+        backtest_summary={
+            "coverage": {
+                "formation_month_count": 3,
+                "realized_month_count": 3,
+                "unique_held_ticker_count": 12,
+            },
+            "realized_start_date": "2024-02-29",
+            "realized_end_date": "2024-04-30",
+        },
+        model_metadata=_model_metadata_fixture(),
+        fold_diagnostics={
+            "heldout_row_count": 4,
+            "heldout_decision_month_count": 2,
+            "heldout_realized_month_count": 2,
+            "heldout_unique_ticker_count": 2,
+            "decision_start": "2024-04-30",
+            "decision_end": "2024-05-31",
+            "realized_start": "2024-05-31",
+            "realized_end": "2024-06-30",
+        },
+        model_backtest_summary={
+            "coverage": {
+                "formation_month_count": 2,
+                "realized_month_count": 2,
+                "unique_held_ticker_count": 2,
+            },
+            "realized_start_date": "2024-05-31",
+            "realized_end_date": "2024-06-30",
+        },
+        overlap_summary={
+            "overlap_period_count": 2,
+            "realized_start": "2024-05-31",
+            "realized_end": "2024-06-30",
+        },
+    )
+
+
 def test_build_evaluation_summary_includes_benchmark_comparison() -> None:
     """Evaluation summaries should include benchmark-aware comparisons and caveats."""
     project_config = load_project_config()
@@ -242,12 +356,15 @@ def test_build_evaluation_summary_includes_benchmark_comparison() -> None:
         portfolio_returns=_portfolio_returns_fixture(),
         performance_by_period=_performance_by_period_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
     )
 
     assert summary["status"] == "exploratory_completed"
+    assert summary["execution_mode"] == "seeded"
     assert summary["benchmark_set"] == ["SPY", "QQQ", "equal_weight_universe"]
     assert len(summary["feature_set"]) >= 1
     assert len(summary["benchmark_comparison"]) == 3
+    assert summary["coverage_summary"]["raw_data_selection"]["seeded_sample_fallback_used"] is True
     assert len(summary["bias_caveats"]) >= 1
 
 
@@ -264,6 +381,7 @@ def test_render_strategy_report_outputs_key_sections() -> None:
         portfolio_returns=_portfolio_returns_fixture(),
         performance_by_period=_performance_by_period_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
     )
 
     report = render_strategy_report(
@@ -274,6 +392,8 @@ def test_render_strategy_report_outputs_key_sections() -> None:
 
     assert "# Strategy Report" in report
     assert "## Portfolio Summary" in report
+    assert "## Coverage Audit" in report
+    assert "## Evidence Context" in report
     assert "## Benchmark Comparison" in report
     assert "## Bias Caveats" in report
 
@@ -295,9 +415,11 @@ def test_build_model_evaluation_summary_includes_model_diagnostics() -> None:
         deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
         test_predictions=_model_test_predictions_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
     )
 
     assert summary["status"] == "exploratory_completed"
+    assert summary["execution_mode"] == "seeded"
     assert summary["model_diagnostics"]["split_scheme"] == "expanding_walk_forward"
     assert summary["model_diagnostics"]["fold_count"] == 2
     assert summary["model_diagnostics"]["out_of_sample_evaluation"]["accuracy"] == 0.75
@@ -305,6 +427,8 @@ def test_build_model_evaluation_summary_includes_model_diagnostics() -> None:
     assert summary["deterministic_baseline_overlap_comparison"]["overlap_period_count"] == 2
     assert summary["subperiod_diagnostics"]["available"] is True
     assert summary["subperiod_diagnostics"]["segment_counts_by_type"]["fold_id"] == 2
+    assert "benchmark_volatility_state" in summary["subperiod_diagnostics"]["segment_counts_by_type"]
+    assert summary["evidence_context"]["coverage_evidence_level"] == "insufficient_segment_history"
     assert (
         summary["deterministic_baseline_overlap_comparison"]["comparison_metrics"][
             "cumulative_return_gap"
@@ -329,6 +453,7 @@ def test_render_model_strategy_report_outputs_key_sections() -> None:
         deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
         test_predictions=_model_test_predictions_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
     )
 
     report = render_model_strategy_report(
@@ -343,6 +468,8 @@ def test_render_model_strategy_report_outputs_key_sections() -> None:
     assert "## Portfolio Summary" in report
     assert "## Deterministic Baseline Overlap Comparison" in report
     assert "## Regime And Subperiod Diagnostics" in report
+    assert "## Coverage Audit" in report
+    assert "## Evidence Context" in report
     assert "## Benchmark Comparison" in report
 
 
@@ -359,6 +486,7 @@ def test_build_experiment_record_and_append_jsonl() -> None:
         portfolio_returns=_portfolio_returns_fixture(),
         performance_by_period=_performance_by_period_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
     )
 
     record = build_experiment_record(
@@ -403,6 +531,7 @@ def test_build_model_experiment_record_and_append_jsonl() -> None:
         deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
         test_predictions=_model_test_predictions_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
     )
 
     record = build_model_experiment_record(
@@ -433,3 +562,38 @@ def test_build_model_experiment_record_and_append_jsonl() -> None:
     assert "deterministic_baseline_overlap_comparison" in stored[0]["result_summary"]
     assert "subperiod_diagnostics" in stored[0]["result_summary"]
     registry_path.unlink()
+
+
+def test_build_run_summary_artifact_captures_stage_coverage() -> None:
+    """Top-level run summaries should carry cross-stage coverage and evidence context."""
+    project_config = load_project_config()
+    model_config = load_model_pipeline_config()
+    backtest_config = load_backtest_pipeline_config()
+    summary = build_model_evaluation_summary(
+        project_config=project_config,
+        model_config=model_config,
+        backtest_config=backtest_config,
+        model_metadata=_model_metadata_fixture(),
+        model_backtest_summary=_model_backtest_summary_fixture(),
+        portfolio_returns=_model_portfolio_returns_fixture(),
+        performance_by_period=_model_performance_by_period_fixture(),
+        deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
+        risk_metrics_summary=_risk_metrics_summary_fixture(),
+        test_predictions=_model_test_predictions_fixture(),
+        stage_coverage=_coverage_summary_fixture(project_config),
+    )
+
+    run_summary = build_run_summary_artifact(
+        summary=summary,
+        stage="model_evaluation_report",
+        artifacts_written=["outputs/reports/run_summary.json"],
+    )
+
+    assert run_summary["stage"] == "model_evaluation_report"
+    assert (
+        run_summary["coverage_summary"]["stages"]["model_dataset_eligible"][
+            "eligible_decision_month_count"
+        ]
+        == 3
+    )
+    assert run_summary["evidence_context"]["coverage_evidence_level"] == "insufficient_segment_history"

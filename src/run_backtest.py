@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from src.backtest.config import configure_backtest_logging, load_backtest_pipeline_config
 from src.backtest.holdings import build_holdings_history
@@ -15,12 +16,14 @@ from src.backtest.qc import build_backtest_qc_summary
 from src.backtest.returns import build_benchmark_returns, build_portfolio_returns
 from src.backtest.trades import build_trade_log
 from src.data.io import read_parquet_required, write_csv, write_json, write_parquet
+from src.utils.cli import parse_execution_mode_args
 from src.utils.config import ensure_output_directories
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Run the deterministic monthly backtest stage."""
-    config = load_backtest_pipeline_config()
+    args = parse_execution_mode_args(argv)
+    config = load_backtest_pipeline_config(execution_mode=args.execution_mode)
     configure_backtest_logging(config)
     ensure_output_directories(config.project)
 
@@ -86,4 +89,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

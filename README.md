@@ -4,14 +4,14 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The deterministic baseline workflow is now implemented through evaluation reporting, and the modeling path now extends through multi-window out-of-sample evaluation and an aggregated model-driven backtest:
+The deterministic baseline workflow is now implemented through evaluation reporting, and the modeling path now extends through multi-window out-of-sample evaluation, an aggregated model-driven backtest, and a mode-aware longer-history research execution path:
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
 - `src.signals` converts the feature panel into deterministic cross-sectional rankings
 - `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, and benchmark comparisons
 - `src.evaluation` builds a benchmark-aware summary from the backtest artifacts
-- `src.reporting` writes human-readable strategy reports, a model comparison summary artifact, and experiment-registry records
+- `src.reporting` writes human-readable strategy reports, a top-level run coverage summary artifact, a model comparison summary artifact, and experiment-registry records
 - `src.models` builds leakage-safe labels, fixed or expanding chronological folds, fold-local train-only preprocessing, baseline classifiers, model metadata artifacts, aggregated out-of-sample model score rankings, and model-driven backtest outputs
 - `src.run_model_evaluation_report` now writes a model-aware exploratory report from the current canonical model artifacts
 
@@ -44,6 +44,11 @@ Supported raw file types:
 - `.parquet`
 
 Repo-local deterministic sample inputs are included so ingestion, panel assembly, feature generation, signal generation, backtesting, and evaluation reporting are runnable now without live connectors.
+
+Execution modes:
+
+- default `seeded` mode reads only the packaged sample raw files and preserves the current verification path
+- optional `research_scale` mode prefers broader non-sample local raw files under the same raw-data directories and falls back to the packaged sample files when broader coverage is absent
 
 ## Implemented Outputs
 
@@ -89,6 +94,7 @@ Reporting artifacts:
 
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/run_summary.json`
 - `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
@@ -120,6 +126,8 @@ Implemented stage config files:
 - `config/features.yaml`
 - `config/signals.yaml`
 - `config/backtest.yaml`
+- `config/execution.yaml`
+- `config/evaluation.yaml`
 - `config/paths.yaml`
 - `config/logging.yaml`
 - `config/model.yaml`
@@ -132,6 +140,8 @@ Data-stage rules:
 - monthly security and benchmark returns use `adjusted_close_t / adjusted_close_t-1 - 1`
 - the equal-weight benchmark is the simple average of available constituent monthly returns, chained from `100.0`
 - fundamentals are mapped with a conservative `2`-month effective lag and `12`-month staleness cap
+- `config/execution.yaml` controls whether raw-file discovery stays on the seeded verification files or prefers broader local non-sample files
+- ingestion QC now records the selected raw-file set, whether broader local raw files were available, and whether research-scale mode had to fall back to the sample files
 
 Feature-stage rules:
 
@@ -163,7 +173,9 @@ Evaluation and reporting rules:
 - every generated report is explicitly marked exploratory unless stronger evidence is actually available
 - benchmark comparisons are carried through into the report and experiment registry
 - model-aware reporting now compares model-driven backtest returns against the deterministic baseline only on overlapping realized dates
-- model-aware reporting now writes regime and subperiod diagnostics from the overlap window by fold, calendar bucket, and primary-benchmark direction
+- model-aware reporting now writes configurable regime and subperiod diagnostics from the overlap window by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
+- reports now write `outputs/reports/run_summary.json` with raw-data selection context, stage-level coverage counts, eligible modeling decision-month counts, and deterministic-vs-model overlap-month counts
+- segment evidence is now classified deterministically as `insufficient_segment_history`, `descriptive_segment_evidence`, or `broader_coverage_exploratory_evidence` using thresholds from `config/evaluation.yaml`
 - bias caveats are written directly into the strategy report
 - meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
 
@@ -191,8 +203,9 @@ Model-driven backtest rules:
 Model-aware reporting rules:
 
 - `src.run_model_evaluation_report` reads `model_metadata.json`, `test_predictions.parquet`, deterministic `performance_by_period.csv`, and the `model_*` backtest artifacts
-- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics, fold coverage, an overlap-aware deterministic-vs-model comparison, and exploratory regime/subperiod diagnostics
+- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics, fold coverage, an overlap-aware deterministic-vs-model comparison, exploratory regime/subperiod diagnostics, and a cross-stage coverage audit
 - it writes `outputs/reports/model_strategy_report.md`
+- it writes `outputs/reports/run_summary.json`
 - it writes `outputs/reports/model_comparison_summary.json`
 - it writes `outputs/reports/model_subperiod_comparison.csv`
 - it appends a `model_evaluation_report` record to `outputs/reports/experiment_registry.jsonl`
@@ -207,6 +220,12 @@ Run ingestion:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_data_ingestion
+```
+
+Run ingestion in research-scale mode:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale
 ```
 
 Run panel assembly:
@@ -269,6 +288,20 @@ Run the model-aware report:
 .\.venv\Scripts\python.exe -m src.run_model_evaluation_report
 ```
 
+Research-scale end-to-end path:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_feature_generation --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_signal_generation --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_backtest --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale
+.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale
+```
+
 Full deterministic baseline pipeline:
 
 ```powershell
@@ -325,10 +358,19 @@ Manual verification completed on 2026-03-30:
 - `.\.venv\Scripts\python.exe -m src.run_logistic_regression`
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest`
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report`
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_feature_generation --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_signal_generation --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_backtest --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale`
 
 Current automated status on 2026-03-30:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `56 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed`
 
 ## Best Next Step
 

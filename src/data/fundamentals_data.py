@@ -105,7 +105,11 @@ def build_fundamentals_monthly(
     monthly_dates: pd.Series,
 ) -> pd.DataFrame:
     """Map raw fundamentals observations onto the monthly panel calendar."""
-    raw_fundamentals = read_tabular_files(config.raw.fundamentals_dir, config.raw.file_patterns)
+    raw_fundamentals = read_tabular_files(
+        config.raw.fundamentals_dir,
+        config.raw.file_patterns,
+        execution=config.project.execution,
+    )
     standardized = standardize_fundamentals_raw(raw_fundamentals, config=config)
 
     calendar_dates = pd.Series(pd.to_datetime(monthly_dates)).dropna().drop_duplicates().sort_values()
@@ -173,4 +177,7 @@ def build_fundamentals_monthly(
     ]
     merged = merged[ordered_columns].sort_values(["ticker", "date"]).reset_index(drop=True)
     assert_unique_keys(merged, ["ticker", "date"], "fundamentals_monthly")
+    merged.attrs["raw_file_selection_manifest"] = raw_fundamentals.attrs.get(
+        "raw_file_selection_manifest"
+    )
     return merged

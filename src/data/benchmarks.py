@@ -32,7 +32,11 @@ def build_benchmarks_monthly(
     config: DataPipelineConfig, prices_monthly: pd.DataFrame
 ) -> pd.DataFrame:
     """Read explicit benchmarks and append the derived equal-weight universe benchmark."""
-    raw_benchmarks = read_tabular_files(config.raw.benchmarks_dir, config.raw.file_patterns)
+    raw_benchmarks = read_tabular_files(
+        config.raw.benchmarks_dir,
+        config.raw.file_patterns,
+        execution=config.project.execution,
+    )
     explicit = standardize_price_history(
         raw_benchmarks,
         dataset_name="benchmarks",
@@ -54,6 +58,9 @@ def build_benchmarks_monthly(
     benchmarks = pd.concat([explicit, equal_weight], ignore_index=True)
     benchmarks = benchmarks.sort_values(["benchmark_ticker", "date"]).reset_index(drop=True)
     assert_unique_keys(benchmarks, ["benchmark_ticker", "date"], "benchmarks_monthly")
+    raw_manifest = dict(raw_benchmarks.attrs.get("raw_file_selection_manifest") or {})
+    raw_manifest["derived_benchmarks_added"] = [config.processing.equal_weight_benchmark_id]
+    benchmarks.attrs["raw_file_selection_manifest"] = raw_manifest
     return benchmarks
 
 

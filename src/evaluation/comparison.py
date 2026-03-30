@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from src.backtest.metrics import summarize_return_series
+from src.utils.config import EvaluationConfig
 
 
 def _as_float_or_none(value: Any) -> float | None:
@@ -160,6 +161,7 @@ def build_fold_diagnostics(
             "heldout_row_count": 0,
             "heldout_decision_month_count": 0,
             "heldout_realized_month_count": 0,
+            "heldout_unique_ticker_count": 0,
             "decision_start": None,
             "decision_end": None,
             "realized_start": None,
@@ -223,6 +225,7 @@ def build_fold_diagnostics(
         "heldout_row_count": int(len(predictions)),
         "heldout_decision_month_count": int(predictions["date"].nunique()),
         "heldout_realized_month_count": int(predictions["realized_label_date"].nunique()),
+        "heldout_unique_ticker_count": int(predictions["ticker"].nunique()),
         "decision_start": _as_date_string(predictions["date"].min()),
         "decision_end": _as_date_string(predictions["date"].max()),
         "realized_start": _as_date_string(predictions["realized_label_date"].min()),
@@ -368,6 +371,93 @@ def _benchmark_direction_label(value: Any) -> str:
     return "benchmark_flat"
 
 
+def _calendar_half_year_label(date_value: pd.Timestamp) -> str:
+    """Map one timestamp to a deterministic calendar half-year bucket."""
+    half = "H1" if date_value.month <= 6 else "H2"
+    return f"{date_value.year}-{half}"
+
+
+def _classify_segment_history(
+    period_count: int,
+    *,
+    evaluation_config: EvaluationConfig,
+) -> tuple[str, bool, str]:
+    """Classify a segment into insufficient, descriptive, or broader-coverage buckets."""
+    descriptive_minimum = evaluation_config.evidence.minimum_months_for_descriptive_segment
+    broader_minimum = evaluation_config.evidence.minimum_months_for_broader_coverage_segment
+    if period_count < descriptive_minimum:
+        return (
+            "insufficient_segment_history",
+            True,
+            "segment_history_too_short_for_meaningful_comparison",
+        )
+    if period_count < broader_minimum:
+        return (
+            "descriptive_segment_evidence",
+            False,
+            "segment_is_long_enough_for_descriptive_comparison_but_not_for_broader_coverage_claims",
+        )
+    return (
+        "broader_coverage_exploratory_evidence",
+        False,
+        "segment_has_broader_coverage_but_remains_exploratory_not_benchmark_quality",
+    )
+
+
+def _add_benchmark_state_columns(
+    overlap: pd.DataFrame,
+    *,
+    evaluation_config: EvaluationConfig,
+) -> pd.DataFrame:
+    """Add derived benchmark regime labels used for scalable segment reporting."""
+    enriched = overlap.copy()
+    enriched["benchmark_direction"] = enriched["primary_benchmark_return"].apply(
+        _benchmark_direction_label
+    )
+
+    wealth = (1.0 + enriched["primary_benchmark_return"].fillna(0.0)).cumprod()
+    running_peak = wealth.cummax()
+    drawdown = wealth / running_peak - 1.0
+    enriched["benchmark_drawdown"] = drawdown
+    enriched["benchmark_drawdown_state"] = drawdown.apply(
+        lambda value: (
+            "benchmark_near_high"
+            if pd.notna(value)
+            and float(value) >= evaluation_config.segmentation.drawdown_flat_threshold
+            else "benchmark_drawdown"
+        )
+    )
+
+    rolling_volatility = (
+        enriched["primary_benchmark_return"]
+        .fillna(0.0)
+        .rolling(
+            window=evaluation_config.segmentation.volatility_lookback_months,
+            min_periods=evaluation_config.segmentation.volatility_lookback_months,
+        )
+        .std(ddof=0)
+    )
+    available_volatility = rolling_volatility.dropna()
+    if available_volatility.empty:
+        median_volatility = None
+    else:
+        median_volatility = float(available_volatility.median())
+    enriched["benchmark_rolling_volatility"] = rolling_volatility
+    if median_volatility is None:
+        enriched["benchmark_volatility_state"] = "volatility_history_unavailable"
+    else:
+        enriched["benchmark_volatility_state"] = rolling_volatility.apply(
+            lambda value: (
+                "volatility_history_unavailable"
+                if pd.isna(value)
+                else "benchmark_high_volatility"
+                if float(value) >= median_volatility
+                else "benchmark_low_volatility"
+            )
+        )
+    return enriched
+
+
 def _summarize_overlap_segment(
     *,
     frame: pd.DataFrame,
@@ -375,6 +465,7 @@ def _summarize_overlap_segment(
     segment_id: str,
     primary_benchmark: str,
     overlap_period_count: int,
+    evaluation_config: EvaluationConfig,
 ) -> dict[str, Any]:
     """Summarize one overlap subperiod or regime segment."""
     model_metrics = summarize_return_series(
@@ -402,11 +493,9 @@ def _summarize_overlap_segment(
         benchmark_cumulative_return = float((1.0 + frame["primary_benchmark_return"].fillna(0.0)).prod() - 1.0)
 
     period_count = int(len(frame))
-    sparse_segment = period_count < 3
-    note = (
-        "descriptive_only_short_segment"
-        if sparse_segment
-        else "segment_has_minimum_history_for_basic_descriptive_comparison"
+    evidence_level, insufficient_segment_history, note = _classify_segment_history(
+        period_count,
+        evaluation_config=evaluation_config,
     )
     return {
         "segment_type": segment_type,
@@ -441,7 +530,9 @@ def _summarize_overlap_segment(
         "average_turnover_gap": _as_float_or_none(
             frame["model_turnover"].mean() - frame["deterministic_turnover"].mean()
         ),
-        "sparse_segment": sparse_segment,
+        "sparse_segment": insufficient_segment_history,
+        "insufficient_segment_history": insufficient_segment_history,
+        "evidence_level": evidence_level,
         "note": note,
     }
 
@@ -451,9 +542,10 @@ def build_overlap_subperiod_diagnostics(
     deterministic_performance_by_period: pd.DataFrame,
     model_performance_by_period: pd.DataFrame,
     test_predictions: pd.DataFrame,
+    evaluation_config: EvaluationConfig,
     primary_benchmark: str = "SPY",
 ) -> dict[str, Any]:
-    """Summarize overlap performance by fold, calendar bucket, and benchmark-direction regime."""
+    """Summarize overlap performance by configured fold, calendar, and regime buckets."""
     overlap = _prepare_overlap_frame(
         deterministic_performance_by_period=deterministic_performance_by_period,
         model_performance_by_period=model_performance_by_period,
@@ -463,11 +555,17 @@ def build_overlap_subperiod_diagnostics(
         return {
             "available": False,
             "primary_benchmark": primary_benchmark,
+            "overlap_period_count": 0,
             "segment_types_evaluated": [],
             "segment_counts_by_type": {},
+            "segment_evidence_counts": {},
             "distinct_benchmark_regimes": [],
             "regime_comparison_supported": False,
             "regime_comparison_note": "No overlapping realized dates were available for subperiod diagnostics.",
+            "evidence_thresholds": {
+                "minimum_months_for_descriptive_segment": evaluation_config.evidence.minimum_months_for_descriptive_segment,
+                "minimum_months_for_broader_coverage_segment": evaluation_config.evidence.minimum_months_for_broader_coverage_segment,
+            },
             "segments": [],
         }
 
@@ -475,19 +573,33 @@ def build_overlap_subperiod_diagnostics(
     overlap["fold_id_label"] = overlap["fold_id_label"].fillna("fold_unavailable")
     overlap["calendar_month"] = overlap["date"].dt.strftime("%Y-%m")
     overlap["calendar_quarter"] = overlap["date"].dt.to_period("Q").astype(str)
-    overlap["benchmark_direction"] = overlap["primary_benchmark_return"].apply(
-        _benchmark_direction_label
-    )
+    overlap["calendar_half_year"] = overlap["date"].apply(_calendar_half_year_label)
+    overlap["calendar_year"] = overlap["date"].dt.strftime("%Y")
+    overlap = _add_benchmark_state_columns(overlap, evaluation_config=evaluation_config)
     overlap_period_count = len(overlap)
 
-    segment_specs = (
-        ("fold_id", "fold_id_label"),
-        ("calendar_month", "calendar_month"),
-        ("calendar_quarter", "calendar_quarter"),
-        ("benchmark_direction", "benchmark_direction"),
-    )
+    segment_specs: list[tuple[str, str]] = []
+    segmentation = evaluation_config.segmentation
+    if segmentation.include_fold:
+        segment_specs.append(("fold_id", "fold_id_label"))
+    if segmentation.include_calendar_month:
+        segment_specs.append(("calendar_month", "calendar_month"))
+    if segmentation.include_calendar_quarter:
+        segment_specs.append(("calendar_quarter", "calendar_quarter"))
+    if segmentation.include_calendar_half_year:
+        segment_specs.append(("calendar_half_year", "calendar_half_year"))
+    if segmentation.include_calendar_year:
+        segment_specs.append(("calendar_year", "calendar_year"))
+    if segmentation.include_benchmark_direction:
+        segment_specs.append(("benchmark_direction", "benchmark_direction"))
+    if segmentation.include_drawdown_state:
+        segment_specs.append(("benchmark_drawdown_state", "benchmark_drawdown_state"))
+    if segmentation.include_volatility_state:
+        segment_specs.append(("benchmark_volatility_state", "benchmark_volatility_state"))
+
     segments: list[dict[str, Any]] = []
     segment_counts_by_type: dict[str, int] = {}
+    segment_evidence_counts: dict[str, int] = {}
     for segment_type, column_name in segment_specs:
         grouped_segments = []
         for segment_id, frame in overlap.groupby(column_name, sort=True):
@@ -497,6 +609,10 @@ def build_overlap_subperiod_diagnostics(
                 segment_id=str(segment_id),
                 primary_benchmark=primary_benchmark,
                 overlap_period_count=overlap_period_count,
+                evaluation_config=evaluation_config,
+            )
+            segment_evidence_counts[row["evidence_level"]] = (
+                segment_evidence_counts.get(row["evidence_level"], 0) + 1
             )
             grouped_segments.append(row)
         segments.extend(grouped_segments)
@@ -519,10 +635,16 @@ def build_overlap_subperiod_diagnostics(
     return {
         "available": True,
         "primary_benchmark": primary_benchmark,
+        "overlap_period_count": overlap_period_count,
         "segment_types_evaluated": [segment_type for segment_type, _ in segment_specs],
         "segment_counts_by_type": segment_counts_by_type,
+        "segment_evidence_counts": segment_evidence_counts,
         "distinct_benchmark_regimes": distinct_benchmark_regimes,
         "regime_comparison_supported": regime_comparison_supported,
         "regime_comparison_note": regime_comparison_note,
+        "evidence_thresholds": {
+            "minimum_months_for_descriptive_segment": evaluation_config.evidence.minimum_months_for_descriptive_segment,
+            "minimum_months_for_broader_coverage_segment": evaluation_config.evidence.minimum_months_for_broader_coverage_segment,
+        },
         "segments": segments,
     }

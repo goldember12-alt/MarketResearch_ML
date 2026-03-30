@@ -85,8 +85,12 @@ def standardize_price_history(
 
 def build_prices_monthly(config: DataPipelineConfig) -> pd.DataFrame:
     """Read local raw market files and produce canonical monthly security prices."""
-    raw_prices = read_tabular_files(config.raw.market_dir, config.raw.file_patterns)
-    return standardize_price_history(
+    raw_prices = read_tabular_files(
+        config.raw.market_dir,
+        config.raw.file_patterns,
+        execution=config.project.execution,
+    )
+    prices_monthly = standardize_price_history(
         raw_prices,
         dataset_name="market prices",
         id_candidates=config.processing.ticker_column_priority,
@@ -97,3 +101,7 @@ def build_prices_monthly(config: DataPipelineConfig) -> pd.DataFrame:
         end_date=config.project.universe.end_date,
         output_id_column="ticker",
     )
+    prices_monthly.attrs["raw_file_selection_manifest"] = raw_prices.attrs.get(
+        "raw_file_selection_manifest"
+    )
+    return prices_monthly

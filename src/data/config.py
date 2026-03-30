@@ -97,10 +97,13 @@ class DataPipelineConfig:
         return self.project.universe.explicit_benchmarks
 
 
-def load_data_pipeline_config(root_dir: Path | None = None) -> DataPipelineConfig:
+def load_data_pipeline_config(
+    root_dir: Path | None = None,
+    execution_mode: str | None = None,
+) -> DataPipelineConfig:
     """Load the data-stage contract from repo config files."""
     resolved_root = root_dir or repo_root()
-    project = load_project_config(resolved_root)
+    project = load_project_config(resolved_root, execution_mode=execution_mode)
 
     data_path = resolved_root / "config" / "data.yaml"
     logging_path = resolved_root / "config" / "logging.yaml"
@@ -158,7 +161,9 @@ def load_data_pipeline_config(root_dir: Path | None = None) -> DataPipelineConfi
         logging=logging_config,
         config_files={
             "universe": resolved_root / "config" / "universe.yaml",
+            "execution": resolved_root / "config" / "execution.yaml",
             "backtest": resolved_root / "config" / "backtest.yaml",
+            "evaluation": resolved_root / "config" / "evaluation.yaml",
             "paths": resolved_root / "config" / "paths.yaml",
             "data": data_path,
             "logging": logging_path,

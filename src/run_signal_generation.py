@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 from src.data.io import read_parquet_required, write_csv, write_json, write_parquet
 from src.signals.config import configure_signal_logging, load_signal_pipeline_config
 from src.signals.qc import build_signal_qc_summary, build_signal_selection_summary
 from src.signals.scoring import build_signal_rankings
+from src.utils.cli import parse_execution_mode_args
 from src.utils.config import ensure_output_directories
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     """Generate deterministic cross-sectional rankings from the feature panel."""
-    config = load_signal_pipeline_config()
+    args = parse_execution_mode_args(argv)
+    config = load_signal_pipeline_config(execution_mode=args.execution_mode)
     configure_signal_logging(config)
     ensure_output_directories(config.project)
 
@@ -43,4 +46,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

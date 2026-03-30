@@ -64,6 +64,9 @@ def build_backtest_qc_summary(
 
     expected_benchmark_rows = len(portfolio_returns) * len(config.benchmarks.identifiers)
     benchmark_alignment_ok = len(benchmark_returns) == expected_benchmark_rows
+    holdings_by_rebalance = (
+        holdings_history.groupby("date")["ticker"].nunique() if not holdings_history.empty else pd.Series(dtype="int64")
+    )
 
     missing_realized_return_count = int(
         holding_return_details["missing_realized_return"].sum()
@@ -90,6 +93,13 @@ def build_backtest_qc_summary(
         "rebalance_count": int(len(rebalance_summary)),
         "portfolio_period_count": int(len(portfolio_returns)),
         "benchmark_row_count": int(len(benchmark_returns)),
+        "unique_held_ticker_count": int(holdings_history["ticker"].nunique()) if not holdings_history.empty else 0,
+        "average_selected_ticker_count": (
+            float(holdings_by_rebalance.mean()) if not holdings_by_rebalance.empty else 0.0
+        ),
+        "max_selected_ticker_count": (
+            int(holdings_by_rebalance.max()) if not holdings_by_rebalance.empty else 0
+        ),
         "benchmark_alignment_ok": benchmark_alignment_ok,
         "missing_realized_return_policy": "fill_with_zero_and_log",
         "missing_realized_return_count": missing_realized_return_count,

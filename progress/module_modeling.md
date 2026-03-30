@@ -1,10 +1,12 @@
 # Module Progress: Modeling
 
 ## Current State
-- Implemented baseline stage with leakage-safe labels, fixed and expanding chronological splits, fold-local train-only preprocessing, logistic regression, random forest, canonical multi-window model artifacts, and an aggregated out-of-sample model-driven backtest handoff
+- Implemented baseline stage with leakage-safe labels, fixed and expanding chronological splits, fold-local train-only preprocessing, logistic regression, random forest, canonical multi-window model artifacts, an aggregated out-of-sample model-driven backtest handoff, and a `research_scale` execution path ready for broader local raw history
 
 ## Files Touched
 - `config/model.yaml`
+- `config/execution.yaml`
+- `config/evaluation.yaml`
 - `config/paths.yaml`
 - `src/models/config.py`
 - `src/models/labels.py`
@@ -32,9 +34,11 @@
 - Implemented train-only median imputation and scaling through a preprocessing pipeline that is refit separately inside each fold
 - Implemented logistic-regression and random-forest baseline runners
 - Implemented aggregated train and out-of-sample prediction artifacts, fold-aware metadata/QC output writing, and mean-across-fold feature-importance export
+- Added explicit eligible decision-month and unique-ticker coverage fields to modeling QC metadata
 - Added deterministic signal comparison context to prediction artifacts and model metadata when `signal_rankings.parquet` is available
 - Appended exploratory modeling records to `outputs/reports/experiment_registry.jsonl`
 - Implemented aggregated out-of-sample model-score ranking conversion and a runnable model-driven backtest handoff through `src.run_model_backtest`
+- Added execution-mode support to the modeling CLIs so the same chronology-safe path can be rerun under `research_scale`
 
 ## Testing Status
 - Added focused synthetic tests for:
@@ -55,10 +59,13 @@
   - `src.run_random_forest`
   - `src.run_model_backtest`
 - `.\.venv\Scripts\python.exe -m pytest -q` passed with `53 passed` on 2026-03-30
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed` on 2026-03-30
 
 ## Manual Verification Status
 - `.\.venv\Scripts\python.exe -m src.run_modeling_baselines` completed successfully on 2026-03-30
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest` completed successfully on 2026-03-30
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale` completed successfully on 2026-03-30
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale` completed successfully on 2026-03-30
 - Resulting artifacts were manually checked:
   - `outputs/models/train_predictions.parquet`
   - `outputs/models/test_predictions.parquet`
@@ -72,6 +79,7 @@
 - The seeded sample still yields only two walk-forward held-out decision months, so realized-period coverage remains short
 - Fundamentals remain lagged heuristics rather than point-in-time-safe history
 - The seeded sample history is still short and uses deterministic local fixture data
+- The `research_scale` path currently falls back to the same sample-tagged files because broader local raw history is not yet available
 
 ## Immediate Next Step
-- Add model-aware reporting comparable to the deterministic strategy report and extend walk-forward evaluation over longer history
+- Add broader non-sample local raw history and rerun the walk-forward modeling path in `research_scale` mode so eligible decision-month and overlap coverage become materially larger

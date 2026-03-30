@@ -99,10 +99,13 @@ class FeaturePipelineConfig:
         return self.project.outputs
 
 
-def load_feature_pipeline_config(root_dir: Path | None = None) -> FeaturePipelineConfig:
+def load_feature_pipeline_config(
+    root_dir: Path | None = None,
+    execution_mode: str | None = None,
+) -> FeaturePipelineConfig:
     """Load the feature-stage contract from repo config files."""
     resolved_root = root_dir or repo_root()
-    project = load_project_config(resolved_root)
+    project = load_project_config(resolved_root, execution_mode=execution_mode)
     features_path = resolved_root / "config" / "features.yaml"
     logging_path = resolved_root / "config" / "logging.yaml"
     features_raw = _load_yaml_mapping(features_path)
@@ -154,6 +157,8 @@ def load_feature_pipeline_config(root_dir: Path | None = None) -> FeaturePipelin
         ),
         config_files={
             "features": features_path,
+            "execution": resolved_root / "config" / "execution.yaml",
+            "evaluation": resolved_root / "config" / "evaluation.yaml",
             "logging": logging_path,
             "paths": resolved_root / "config" / "paths.yaml",
             "universe": resolved_root / "config" / "universe.yaml",

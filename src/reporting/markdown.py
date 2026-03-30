@@ -27,6 +27,7 @@ def _render_fold_diagnostics(fold_diagnostics: dict[str, Any]) -> list[str]:
         f"- Held-out realized date range: `{fold_diagnostics.get('realized_start')}` to `{fold_diagnostics.get('realized_end')}`",
         f"- Held-out decision month count: `{fold_diagnostics.get('heldout_decision_month_count')}`",
         f"- Held-out realized month count: `{fold_diagnostics.get('heldout_realized_month_count')}`",
+        f"- Held-out unique ticker count: `{fold_diagnostics.get('heldout_unique_ticker_count')}`",
         f"- Held-out row count: `{fold_diagnostics.get('heldout_row_count')}`",
     ]
     for fold in fold_diagnostics.get("folds", []):
@@ -97,6 +98,7 @@ def _render_subperiod_diagnostics(subperiod_diagnostics: dict[str, Any]) -> list
         f"- Segment types evaluated: `{', '.join(subperiod_diagnostics['segment_types_evaluated'])}`",
         f"- Distinct benchmark-direction regimes in overlap: `{', '.join(subperiod_diagnostics['distinct_benchmark_regimes']) if subperiod_diagnostics['distinct_benchmark_regimes'] else 'none'}`",
         f"- Regime comparison note: {subperiod_diagnostics['regime_comparison_note']}",
+        f"- Segment evidence counts: `{subperiod_diagnostics.get('segment_evidence_counts', {})}`",
     ]
     for segment in subperiod_diagnostics.get("segments", []):
         lines.append(
@@ -107,10 +109,36 @@ def _render_subperiod_diagnostics(subperiod_diagnostics: dict[str, Any]) -> list
                 f"gap `{_pct(segment['cumulative_return_gap'])}`, "
                 f"winning-month share `{_pct(segment['winning_month_share'])}`, "
                 f"benchmark cumulative `{_pct(segment['primary_benchmark_cumulative_return'])}`, "
+                f"evidence `{segment.get('evidence_level')}`, "
                 f"note `{segment['note']}`"
             )
         )
     return lines
+
+
+def _render_coverage_summary(coverage_summary: dict[str, Any]) -> list[str]:
+    """Render the run-coverage audit block."""
+    raw_data_selection = coverage_summary.get("raw_data_selection", {})
+    lines = [
+        "## Coverage Audit",
+        f"- Execution mode: `{coverage_summary.get('execution_mode')}`",
+        f"- Broader local raw data available: `{raw_data_selection.get('broader_local_raw_available')}`",
+        f"- Seeded sample fallback used: `{raw_data_selection.get('seeded_sample_fallback_used')}`",
+    ]
+    for stage_name, stage_summary in coverage_summary.get("stages", {}).items():
+        lines.append("- " + f"`{stage_name}`: `{stage_summary}`")
+    return lines
+
+
+def _render_evidence_context(evidence_context: dict[str, Any]) -> list[str]:
+    """Render the summary evidence-tier block."""
+    return [
+        "## Evidence Context",
+        f"- Coverage evidence level: `{evidence_context.get('coverage_evidence_level')}`",
+        f"- Minimum months for descriptive segment evidence: `{evidence_context.get('minimum_months_for_descriptive_segment')}`",
+        f"- Minimum months for broader-coverage exploratory evidence: `{evidence_context.get('minimum_months_for_broader_coverage_segment')}`",
+        f"- Overlap month count used for evidence tier: `{evidence_context.get('overlap_period_count')}`",
+    ]
 
 
 def render_strategy_report(
@@ -129,6 +157,7 @@ def render_strategy_report(
         f"- Status: `{summary['status']}`",
         f"- Generated at (UTC): `{summary['generated_at_utc']}`",
         f"- Universe preset: `{summary['universe_preset']}`",
+        f"- Execution mode: `{summary['execution_mode']}`",
         f"- Signal baseline: `{summary['signal_or_model']}`",
         "",
         "## Method Snapshot",
@@ -164,6 +193,18 @@ def render_strategy_report(
             )
         )
 
+    lines.extend(
+        [
+            "",
+        ]
+    )
+    lines.extend(_render_coverage_summary(summary["coverage_summary"]))
+    lines.extend(
+        [
+            "",
+        ]
+    )
+    lines.extend(_render_evidence_context(summary["evidence_context"]))
     lines.extend(
         [
             "",
@@ -209,6 +250,7 @@ def render_model_strategy_report(
         f"- Status: `{summary['status']}`",
         f"- Generated at (UTC): `{summary['generated_at_utc']}`",
         f"- Universe preset: `{summary['universe_preset']}`",
+        f"- Execution mode: `{summary['execution_mode']}`",
         f"- Model: `{summary['signal_or_model']}`",
         "",
         "## Method Snapshot",
@@ -250,6 +292,10 @@ def render_model_strategy_report(
     lines.extend(_render_overlap_comparison(overlap_comparison, comparison_convention))
     lines.extend([""])
     lines.extend(_render_subperiod_diagnostics(subperiod_diagnostics))
+    lines.extend([""])
+    lines.extend(_render_coverage_summary(summary["coverage_summary"]))
+    lines.extend([""])
+    lines.extend(_render_evidence_context(summary["evidence_context"]))
     lines.extend(["", "## Benchmark Comparison"])
 
     for comparison in summary["benchmark_comparison"]:

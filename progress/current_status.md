@@ -2,11 +2,15 @@
 
 ## Current Milestone
 
-- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with exploratory subperiod diagnostics are implemented for the local-file-first workflow
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with structured coverage diagnostics are implemented for the local-file-first workflow. The repo now also has a config-driven `research_scale` execution path that prefers broader local raw files and degrades gracefully to the seeded sample files when broader history is absent.
 
 ## What Is Completed
 
 - `src.data` includes config-driven modules for raw file ingestion, standardization, benchmark construction, QC, and deterministic monthly panel assembly.
+- `src.data` now also includes config-driven execution-mode handling for:
+  - default `seeded` raw-file selection
+  - `research_scale` raw-file selection that prefers non-sample local files and records sample fallback explicitly
+  - raw-file selection manifests embedded in dataset QC JSON outputs
 - `src.features` includes config loading, leakage-safe feature engineering, feature QC, and feature missingness summaries.
 - `src.signals` includes:
   - signal-stage config loading
@@ -22,7 +26,7 @@
   - next-period return alignment using holdings formed at `t` and returns realized at `t+1`
   - turnover-based transaction cost application
   - benchmark alignment for `SPY`, `QQQ`, and `equal_weight_universe`
-  - risk metrics, per-period comparison tables, and compact QC reporting
+  - risk metrics, per-period comparison tables, compact QC reporting, and explicit coverage counts in backtest summaries
 - `src.evaluation` includes structured benchmark-aware evaluation summaries derived from the backtest artifacts.
 - `src.reporting` includes:
   - markdown strategy-report rendering
@@ -31,7 +35,9 @@
   - machine-readable model subperiod comparison generation
   - overlap-aware deterministic-vs-model comparison reporting on shared realized dates only
   - held-out fold coverage diagnostics in model-aware reporting
-  - overlap-window regime and subperiod diagnostics by fold, calendar bucket, and benchmark direction
+  - top-level run summary generation
+  - overlap-window regime and subperiod diagnostics by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
+  - segment evidence-tier labeling for insufficient-history versus broader-coverage exploratory diagnostics
   - experiment-registry record creation
   - JSONL append logic for meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs
 - `src.models` includes:
@@ -46,9 +52,11 @@
   - model-driven backtest summary and experiment-registry record construction
 - `src.run_evaluation_report.py` reads the backtest outputs and writes:
   - `outputs/reports/strategy_report.md`
+  - `outputs/reports/run_summary.json`
   - `outputs/reports/experiment_registry.jsonl`
 - `src.run_model_evaluation_report.py` reads the current canonical model metadata plus model-driven backtest outputs and writes:
   - `outputs/reports/model_strategy_report.md`
+  - `outputs/reports/run_summary.json`
   - `outputs/reports/model_comparison_summary.json`
   - `outputs/reports/model_subperiod_comparison.csv`
   - `outputs/reports/experiment_registry.jsonl`
@@ -87,15 +95,20 @@
   - held-out fold coverage diagnostics
   - comparison-convention metadata
   - overlap-window subperiod and regime diagnostics
+  - evidence-tier classification for short versus longer segment history
+- Focused data-pipeline tests were added for:
+  - research-scale raw-file selection preference for non-sample files
+  - research-scale fallback to sample-tagged raw files when broader local raw coverage is absent
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
+  - `src.run_data_ingestion --execution-mode research_scale`
   - `src.run_evaluation_report`
   - `src.run_modeling_baselines`
   - `src.run_logistic_regression`
   - `src.run_random_forest`
   - `src.run_model_backtest`
   - `src.run_model_evaluation_report`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `56 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed` on 2026-03-30.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -117,18 +130,29 @@
   - `model_risk_metrics_summary.csv`: portfolio and benchmark metrics present
   - `model_backtest_summary.json`: model type, split scheme, fold count, prediction splits used, shared backtest metrics, and caveats present
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_feature_generation --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_signal_generation --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_backtest --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale` completed successfully on 2026-03-30.
 - Resulting model-aware reporting artifacts were manually checked:
-  - `model_strategy_report.md`: model diagnostics, fold coverage, overlap-aware deterministic comparison, regime/subperiod diagnostics, benchmark comparison, risk controls, caveats, interpretation, and next step present
-  - `model_comparison_summary.json`: comparison convention, fold diagnostics, overlap-only deterministic-vs-model metrics, and subperiod diagnostics metadata present
-  - `model_subperiod_comparison.csv`: overlap segments present for fold, calendar, and benchmark-direction breakdowns
-  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison and subperiod content in `result_summary`
+  - `model_strategy_report.md`: model diagnostics, fold coverage, overlap-aware deterministic comparison, regime/subperiod diagnostics, coverage audit, benchmark comparison, risk controls, caveats, interpretation, and next step present
+  - `run_summary.json`: execution mode, raw-file selection context, stage coverage counts, eligible decision-month counts, overlap-month counts, and evidence-tier metadata present
+  - `model_comparison_summary.json`: comparison convention, fold diagnostics, overlap-only deterministic-vs-model metrics, coverage summary, and subperiod diagnostics metadata present
+  - `model_subperiod_comparison.csv`: overlap segments present for fold, calendar quarter, calendar half-year, calendar year, benchmark-direction, drawdown-state, and volatility-state breakdowns
+  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison, coverage summary, and subperiod content in `result_summary`
+- Research-scale manual verification confirmed that broader local raw files were not present under the documented raw-data directories on 2026-03-30, so the new execution path correctly used seeded-sample fallback and recorded that fact in the QC and reporting artifacts.
 - `.\.venv\Scripts\python.exe -m src.run_logistic_regression` was rerun successfully on 2026-03-30 after the automated suite to restore the canonical selected-model artifacts to the default `logistic_regression` state before rerunning `src.run_model_backtest` and `src.run_model_evaluation_report`.
 - Previous manual verification for `src.run_backtest` remains valid:
   - the backtest outputs used by reporting and modeling comparison context were present and aligned before the modeling run
 
 ## Immediate Next Step
 
-- Extend the realized overlap history so the new regime and subperiod diagnostics can be evaluated over materially longer windows and support stronger attribution for model-driven runs.
+- Add broader non-sample local raw history under the documented raw-data directories and rerun the full `research_scale` path so the new coverage-aware robustness diagnostics can move beyond the current insufficient-history tier.
 
 ## Known Risks / Open Issues
 
@@ -136,10 +160,11 @@
 - Fundamentals are not point-in-time safe. The current upstream lag rules are conservative heuristics, not a complete point-in-time solution.
 - Fundamentals-derived features and signals therefore still carry revised-history bias risk.
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.
+- The new `research_scale` path is implemented and verified, but it cannot produce a genuinely longer-history run until broader local raw files are added.
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
 - The current model-driven backtest now uses aggregated out-of-sample windows, but realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.
-- Regime and subperiod diagnostics are now implemented, but longer-history overlap evaluation and richer attribution are still deferred.
+- The new segment evidence tiers are working, but the current overlap window still remains below the configured minimum descriptive threshold.
 
 ## Current Output Structure
 
@@ -175,6 +200,7 @@
 - `outputs/backtests/model_risk_metrics_summary.csv`
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/run_summary.json`
 - `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`

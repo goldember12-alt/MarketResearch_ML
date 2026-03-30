@@ -24,6 +24,7 @@ def build_dataset_qc_summary(
     dataset_name: str,
     id_column: str,
     key_columns: list[str],
+    extra_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a lightweight QC summary suitable for JSON output."""
     duplicates = find_duplicate_keys(frame, key_columns)
@@ -34,6 +35,9 @@ def build_dataset_qc_summary(
         "columns": [str(column) for column in frame.columns],
         "unique_identifier_count": int(frame[id_column].nunique(dropna=True))
         if id_column in frame.columns
+        else 0,
+        "unique_date_count": int(frame["date"].nunique(dropna=True))
+        if "date" in frame.columns
         else 0,
         "min_date": _to_iso_or_none(frame["date"].min()) if "date" in frame.columns else None,
         "max_date": _to_iso_or_none(frame["date"].max()) if "date" in frame.columns else None,
@@ -48,6 +52,11 @@ def build_dataset_qc_summary(
         summary["sample_identifiers"] = sorted(
             frame[id_column].dropna().astype(str).unique().tolist()
         )[:10]
+    raw_manifest = frame.attrs.get("raw_file_selection_manifest")
+    if raw_manifest:
+        summary["raw_file_selection"] = raw_manifest
+    if extra_metadata:
+        summary.update(extra_metadata)
     return summary
 
 
@@ -64,6 +73,7 @@ def build_panel_qc_summary(
         "row_count": int(len(panel)),
         "unique_ticker_count": int(panel["ticker"].nunique(dropna=True)),
         "unique_date_count": unique_dates,
+        "date_span_months": unique_dates,
         "expected_grid_rows": int(expected_ticker_count * unique_dates),
         "duplicate_key_count": int(len(duplicates[["ticker", "date"]].drop_duplicates()))
         if not duplicates.empty

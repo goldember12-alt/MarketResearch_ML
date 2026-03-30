@@ -24,6 +24,12 @@ Supported raw formats:
 
 Raw files are immutable inputs. The current repo includes deterministic local sample raw files for pipeline verification.
 
+Execution-mode rule:
+
+- `seeded` mode reads only sample-tagged raw files
+- `research_scale` mode prefers broader non-sample local raw files and falls back to the sample-tagged files when broader coverage is absent
+- dataset QC JSON outputs record the raw-file selection manifest so the chosen raw coverage is auditable
+
 ## Standardization Rules
 
 ### Monthly Date Convention
@@ -361,6 +367,7 @@ Structure:
 - stage config snapshot
 - holding-period convention
 - realized date range
+- coverage counts including formation months, realized months, and unique held tickers
 - benchmark list
 - metrics by series
 - compact QC summary
@@ -391,21 +398,35 @@ Current contents:
 - model-driven portfolio summary metrics
 - overlap-aware deterministic-vs-model comparison on shared realized dates only
 - overlap-window regime and subperiod diagnostics
+- cross-stage coverage audit and evidence-tier summary
 - explicit benchmark comparison
 - risk controls
 - bias caveats
 - cautious interpretation
 - next recommended implementation step
 
+### `outputs/reports/run_summary.json`
+
+Structure:
+
+- run timestamp, stage, and execution mode
+- date range for the current report-producing stage
+- raw-data selection context including whether broader local raw files were available
+- stage-level coverage counts across data, features, signals, deterministic backtest, modeling eligibility, model out-of-sample predictions, model backtest, and deterministic-vs-model overlap
+- evidence-tier summary keyed to configured minimum descriptive and broader-coverage month thresholds
+- artifacts written and next-step guidance
+
 ### `outputs/reports/model_comparison_summary.json`
 
 Structure:
 
 - run timestamp and stage status
+- execution mode
 - comparison convention metadata for realized-date alignment and excluded data
 - held-out fold coverage summary and fold-level diagnostics
 - overlap-aware deterministic-vs-model backtest comparison using shared realized dates only
 - overlap-window regime and subperiod diagnostics summary metadata
+- cross-stage coverage summary and evidence-tier metadata
 - reporting caveats carried forward into the machine-readable summary
 
 ### `outputs/reports/model_subperiod_comparison.csv`
@@ -418,7 +439,7 @@ Columns:
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `segment_type` | string | currently `fold_id`, `calendar_month`, `calendar_quarter`, or `benchmark_direction` |
+| `segment_type` | string | currently `fold_id`, `calendar_quarter`, `calendar_half_year`, `calendar_year`, `benchmark_direction`, `benchmark_drawdown_state`, or `benchmark_volatility_state` |
 | `segment_id` | string | segment label within the segment type |
 | `period_count` | int | overlapping realized months inside the segment |
 | `realized_start` | string | first realized overlap date in the segment |
@@ -437,6 +458,8 @@ Columns:
 | `relative_sharpe_ratio` | float | model Sharpe divided by deterministic Sharpe when defined |
 | `average_turnover_gap` | float | model turnover minus deterministic turnover |
 | `sparse_segment` | bool | true when the segment remains too short for anything beyond descriptive interpretation |
+| `insufficient_segment_history` | bool | explicit flag for the shortest-history tier |
+| `evidence_level` | string | `insufficient_segment_history`, `descriptive_segment_evidence`, or `broader_coverage_exploratory_evidence` |
 | `note` | string | cautionary interpretation label for the segment |
 
 ### `outputs/reports/experiment_registry.jsonl`
@@ -455,6 +478,7 @@ One JSON object per line with at minimum:
 - `portfolio_rules`
 - `rebalance_frequency`
 - `transaction_cost_bps`
+- `execution_mode`
 - `artifacts_written`
 - `result_summary`
 - `interpretation`
@@ -685,6 +709,7 @@ Backtest QC currently lives inside `outputs/backtests/backtest_summary.json` and
 
 - benchmark alignment status
 - holdings and rebalance row counts
+- coverage counts for realized months and selected/held tickers
 - realized missing-return policy and count
 - max holdings-plus-cash weight deviation from `1.0`
 - min and max cash weight across rebalances
@@ -698,11 +723,13 @@ The model-driven backtest writes the same QC structure inside:
 The evaluation-report stage currently writes:
 
 - `outputs/reports/strategy_report.md`
+- `outputs/reports/run_summary.json`
 - `outputs/reports/experiment_registry.jsonl`
 
 The model-evaluation-report stage currently writes:
 
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/run_summary.json`
 - `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
@@ -712,6 +739,7 @@ The model-evaluation-report stage currently writes:
 Model QC currently lives inside `outputs/models/model_metadata.json` and includes:
 
 - eligible row counts and eligible decision/realized date range
+- eligible decision-month counts and unique eligible ticker counts
 - split scheme, fold windows, and fold count
 - dropped-row counts for missing labels and insufficient features
 - whether deterministic baseline context was available

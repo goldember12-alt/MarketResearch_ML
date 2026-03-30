@@ -90,10 +90,13 @@ class SignalPipelineConfig:
         return self.project.outputs
 
 
-def load_signal_pipeline_config(root_dir: Path | None = None) -> SignalPipelineConfig:
+def load_signal_pipeline_config(
+    root_dir: Path | None = None,
+    execution_mode: str | None = None,
+) -> SignalPipelineConfig:
     """Load the deterministic signal-generation config bundle."""
     resolved_root = root_dir or repo_root()
-    project = load_project_config(resolved_root)
+    project = load_project_config(resolved_root, execution_mode=execution_mode)
 
     signals_path = resolved_root / "config" / "signals.yaml"
     logging_path = resolved_root / "config" / "logging.yaml"
@@ -136,6 +139,8 @@ def load_signal_pipeline_config(root_dir: Path | None = None) -> SignalPipelineC
         ),
         config_files={
             "signals": signals_path,
+            "execution": resolved_root / "config" / "execution.yaml",
+            "evaluation": resolved_root / "config" / "evaluation.yaml",
             "logging": logging_path,
             "paths": resolved_root / "config" / "paths.yaml",
             "features": resolved_root / "config" / "features.yaml",

@@ -2,11 +2,13 @@
 
 ## Current State
 
-- Deterministic monthly backtest baseline and aggregated out-of-sample model-driven backtest are implemented
+- Deterministic monthly backtest baseline and aggregated out-of-sample model-driven backtest are implemented, with coverage-aware summaries ready for longer-history `research_scale` runs
 
 ## Files Touched
 
 - `config/backtest.yaml`
+- `config/execution.yaml`
+- `config/evaluation.yaml`
 - `config/model.yaml`
 - `config/paths.yaml`
 - `src/backtest/__init__.py`
@@ -40,7 +42,7 @@
 - Implemented leakage-safe next-period return alignment using holdings formed at month-end `t` and realized returns at month-end `t+1`.
 - Implemented a linear turnover-based transaction cost model.
 - Implemented benchmark alignment for `SPY`, `QQQ`, and `equal_weight_universe`.
-- Implemented portfolio and benchmark cumulative returns, risk metrics, per-period comparison output, and compact QC reporting.
+- Implemented portfolio and benchmark cumulative returns, risk metrics, per-period comparison output, compact QC reporting, and explicit coverage counts in backtest summaries.
 - Replaced the scaffold backtest CLI with a runnable implementation that writes the canonical deterministic backtest artifacts.
 - Added explicit realized-period-end support inside holdings construction for sparse ranking inputs.
 - Implemented `src.run_model_backtest` to convert aggregated out-of-sample model predictions into cross-sectional rankings and run them through the shared backtest engine.
@@ -67,12 +69,14 @@
 - `tests/test_repo_skeleton.py` now exercises:
   - `src.run_backtest`
   - `src.run_model_backtest`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `53 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed` on 2026-03-30.
 
 ## Manual Verification Status
 
 - `.\.venv\Scripts\python.exe -m src.run_backtest` completed successfully on 2026-03-28.
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_backtest --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale` completed successfully on 2026-03-30.
 - Deterministic and model-driven backtest artifacts were manually reviewed for schema, date alignment, output presence, and summary content.
 
 ## Known Issues / Risks
@@ -81,7 +85,8 @@
 - Fundamentals-derived inputs still inherit revised-history bias risk.
 - The current local sample data are too short to support strong claims from annualized metrics.
 - The current model-driven backtest now spans aggregated out-of-sample windows, but the realized sample is still short.
+- Broader-history backtest interpretation remains blocked until the upstream `research_scale` path has non-sample local raw files to consume.
 
 ## Immediate Next Step
 
-- Add model-aware reporting comparable to the deterministic strategy report and extend the model-driven path over longer history.
+- Rerun the backtest stages on broader non-sample local raw history so the new coverage-aware summaries become materially informative.

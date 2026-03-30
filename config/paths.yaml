@@ -37,6 +37,7 @@ artifacts:
   model_signal_rankings: "outputs/models/model_signal_rankings.parquet"
   strategy_report: "outputs/reports/strategy_report.md"
   model_strategy_report: "outputs/reports/model_strategy_report.md"
+  run_summary: "outputs/reports/run_summary.json"
   model_comparison_summary: "outputs/reports/model_comparison_summary.json"
   model_subperiod_comparison: "outputs/reports/model_subperiod_comparison.csv"
   experiment_registry: "outputs/reports/experiment_registry.jsonl"

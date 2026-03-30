@@ -125,6 +125,7 @@ def build_model_backtest_registry_record(
         "experiment_id": f"model_backtest_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "run_timestamp": backtest_summary["generated_at_utc"],
         "stage": "model_backtest",
+        "execution_mode": model_config.project.execution.mode_name,
         "purpose": "Backtest held-out model-score rankings under the same monthly portfolio construction and benchmark controls as the deterministic baseline.",
         "date_range": {
             "formation_start": backtest_summary.get("formation_start_date"),
@@ -154,6 +155,7 @@ def build_model_backtest_registry_record(
             "portfolio_net_annualized_return": portfolio_net.get("annualized_return"),
             "portfolio_net_sharpe_ratio": portfolio_net.get("sharpe_ratio"),
             "portfolio_period_count": backtest_summary.get("portfolio_period_count"),
+            "coverage": backtest_summary.get("coverage", {}),
         },
         "interpretation": (
             "This model-driven backtest is exploratory because it uses a short aggregated "

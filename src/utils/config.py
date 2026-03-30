@@ -52,6 +52,51 @@ class UniverseConfig:
 
 
 @dataclass(frozen=True)
+class ExecutionModeConfig:
+    """Execution-mode settings shared across data, backtest, and reporting stages."""
+
+    default_mode: str
+    mode_name: str
+    description: str
+    raw_file_policy: str
+    allow_sample_fallback: bool
+    sample_file_token: str
+
+
+@dataclass(frozen=True)
+class EvaluationEvidenceConfig:
+    """Thresholds used to classify segment-history sufficiency in reports."""
+
+    minimum_months_for_descriptive_segment: int
+    minimum_months_for_broader_coverage_segment: int
+
+
+@dataclass(frozen=True)
+class EvaluationSegmentationConfig:
+    """Config controlling which subperiod and regime buckets are produced."""
+
+    include_fold: bool
+    include_calendar_month: bool
+    include_calendar_quarter: bool
+    include_calendar_half_year: bool
+    include_calendar_year: bool
+    include_benchmark_direction: bool
+    include_drawdown_state: bool
+    drawdown_flat_threshold: float
+    include_volatility_state: bool
+    volatility_lookback_months: int
+    volatility_state_split: str
+
+
+@dataclass(frozen=True)
+class EvaluationConfig:
+    """Cross-stage reporting and evaluation settings."""
+
+    evidence: EvaluationEvidenceConfig
+    segmentation: EvaluationSegmentationConfig
+
+
+@dataclass(frozen=True)
 class BacktestConfig:
     """Config describing baseline portfolio construction assumptions."""
 
@@ -108,6 +153,7 @@ class OutputPathsConfig:
     model_signal_rankings: Path
     strategy_report: Path
     model_strategy_report: Path
+    run_summary: Path
     model_comparison_summary: Path
     model_subperiod_comparison: Path
     experiment_registry: Path
@@ -141,6 +187,8 @@ class ProjectConfig:
 
     root_dir: Path
     universe: UniverseConfig
+    execution: ExecutionModeConfig
+    evaluation: EvaluationConfig
     backtest: BacktestConfig
     outputs: OutputPathsConfig
     config_files: dict[str, Path]
@@ -151,15 +199,22 @@ def _resolve_paths(root_dir: Path, path_values: dict[str, str]) -> dict[str, Pat
     return {key: root_dir / Path(value) for key, value in path_values.items()}
 
 
-def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
+def load_project_config(
+    root_dir: Path | None = None,
+    execution_mode: str | None = None,
+) -> ProjectConfig:
     """Load the minimal cross-stage project contract used by all CLI entrypoints."""
     resolved_root = root_dir or repo_root()
 
     universe_path = resolved_root / "config" / "universe.yaml"
+    execution_path = resolved_root / "config" / "execution.yaml"
+    evaluation_path = resolved_root / "config" / "evaluation.yaml"
     backtest_path = resolved_root / "config" / "backtest.yaml"
     paths_path = resolved_root / "config" / "paths.yaml"
 
     universe_raw = _load_yaml_file(universe_path)
+    execution_raw = _load_yaml_file(execution_path)
+    evaluation_raw = _load_yaml_file(evaluation_path)
     backtest_raw = _load_yaml_file(backtest_path)
     paths_raw = _load_yaml_file(paths_path)
 
@@ -181,6 +236,70 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
             None if calendar.get("end_date") is None else str(calendar["end_date"])
         ),
     )
+
+    default_mode = str(execution_raw["default_mode"])
+    selected_mode = execution_mode or default_mode
+    modes_raw = execution_raw["modes"]
+    if selected_mode not in modes_raw:
+        raise ValueError(
+            f"Unsupported execution mode {selected_mode!r}. Supported modes: {sorted(modes_raw)}"
+        )
+    sample_file_token = str(execution_raw["raw_data_selection"]["sample_file_token"])
+    selected_mode_raw = modes_raw[selected_mode]
+    execution = ExecutionModeConfig(
+        default_mode=default_mode,
+        mode_name=selected_mode,
+        description=str(selected_mode_raw["description"]),
+        raw_file_policy=str(selected_mode_raw["raw_file_policy"]),
+        allow_sample_fallback=bool(selected_mode_raw["allow_sample_fallback"]),
+        sample_file_token=sample_file_token,
+    )
+    if execution.raw_file_policy not in {"sample_only", "prefer_non_sample"}:
+        raise ValueError(
+            "execution.raw_file_policy must be 'sample_only' or 'prefer_non_sample'."
+        )
+
+    evidence_raw = evaluation_raw["evidence_thresholds"]
+    segmentation_raw = evaluation_raw["segmentation"]
+    evaluation = EvaluationConfig(
+        evidence=EvaluationEvidenceConfig(
+            minimum_months_for_descriptive_segment=int(
+                evidence_raw["minimum_months_for_descriptive_segment"]
+            ),
+            minimum_months_for_broader_coverage_segment=int(
+                evidence_raw["minimum_months_for_broader_coverage_segment"]
+            ),
+        ),
+        segmentation=EvaluationSegmentationConfig(
+            include_fold=bool(segmentation_raw["include_fold"]),
+            include_calendar_month=bool(segmentation_raw["include_calendar_month"]),
+            include_calendar_quarter=bool(segmentation_raw["include_calendar_quarter"]),
+            include_calendar_half_year=bool(segmentation_raw["include_calendar_half_year"]),
+            include_calendar_year=bool(segmentation_raw["include_calendar_year"]),
+            include_benchmark_direction=bool(segmentation_raw["include_benchmark_direction"]),
+            include_drawdown_state=bool(segmentation_raw["include_drawdown_state"]),
+            drawdown_flat_threshold=float(segmentation_raw["drawdown_flat_threshold"]),
+            include_volatility_state=bool(segmentation_raw["include_volatility_state"]),
+            volatility_lookback_months=int(segmentation_raw["volatility_lookback_months"]),
+            volatility_state_split=str(segmentation_raw["volatility_state_split"]),
+        ),
+    )
+    if evaluation.evidence.minimum_months_for_descriptive_segment <= 0:
+        raise ValueError(
+            "evaluation minimum_months_for_descriptive_segment must be positive."
+        )
+    if (
+        evaluation.evidence.minimum_months_for_broader_coverage_segment
+        < evaluation.evidence.minimum_months_for_descriptive_segment
+    ):
+        raise ValueError(
+            "evaluation minimum_months_for_broader_coverage_segment must be greater than "
+            "or equal to minimum_months_for_descriptive_segment."
+        )
+    if evaluation.segmentation.volatility_lookback_months <= 0:
+        raise ValueError("evaluation volatility_lookback_months must be positive.")
+    if evaluation.segmentation.volatility_state_split != "median":
+        raise ValueError("evaluation volatility_state_split currently supports only 'median'.")
 
     portfolio = backtest_raw["portfolio"]
     rebalancing = backtest_raw["rebalancing"]
@@ -243,6 +362,7 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
         model_signal_rankings=artifact_paths["model_signal_rankings"],
         strategy_report=artifact_paths["strategy_report"],
         model_strategy_report=artifact_paths["model_strategy_report"],
+        run_summary=artifact_paths["run_summary"],
         model_comparison_summary=artifact_paths["model_comparison_summary"],
         model_subperiod_comparison=artifact_paths["model_subperiod_comparison"],
         experiment_registry=artifact_paths["experiment_registry"],
@@ -260,10 +380,14 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
     return ProjectConfig(
         root_dir=resolved_root,
         universe=universe,
+        execution=execution,
+        evaluation=evaluation,
         backtest=backtest,
         outputs=outputs,
         config_files={
             "universe": universe_path,
+            "execution": execution_path,
+            "evaluation": evaluation_path,
             "backtest": backtest_path,
             "paths": paths_path,
         },

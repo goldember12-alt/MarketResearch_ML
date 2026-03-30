@@ -129,6 +129,7 @@ def _append_model_registry_record(
         "experiment_id": f"modeling_baselines_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "run_timestamp": metadata["generated_at_utc"],
         "stage": "modeling_baselines",
+        "execution_mode": config.project.execution.mode_name,
         "purpose": "Fit a leakage-safe baseline classifier on the monthly feature panel across chronological folds and compare it to the deterministic signal context.",
         "date_range": {
             "eligible_decision_start": metadata["eligible_dataset_summary"]["eligible_decision_date_range"][
@@ -163,6 +164,9 @@ def _append_model_registry_record(
             "out_of_sample_average_precision": metadata["out_of_sample_evaluation"].get(
                 "average_precision"
             ),
+            "eligible_decision_month_count": metadata["eligible_dataset_summary"].get(
+                "eligible_decision_month_count"
+            ),
             "test_accuracy": test_metrics.get("accuracy"),
             "test_roc_auc": test_metrics.get("roc_auc"),
             "test_average_precision": test_metrics.get("average_precision"),
@@ -180,9 +184,13 @@ def _append_model_registry_record(
     append_experiment_record(record, config.outputs.experiment_registry)
 
 
-def run_modeling_stage(model_type: str | None = None) -> int:
+def run_modeling_stage(
+    model_type: str | None = None,
+    *,
+    execution_mode: str | None = None,
+) -> int:
     """Run the configured modeling-baselines stage and write canonical artifacts."""
-    base_config = load_model_pipeline_config()
+    base_config = load_model_pipeline_config(execution_mode=execution_mode)
     config = _config_with_model_override(base_config, model_type)
     configure_model_logging(config)
     ensure_output_directories(config.project)

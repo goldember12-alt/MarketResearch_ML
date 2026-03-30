@@ -197,10 +197,13 @@ class ModelPipelineConfig:
         return self.project.outputs
 
 
-def load_model_pipeline_config(root_dir: Path | None = None) -> ModelPipelineConfig:
+def load_model_pipeline_config(
+    root_dir: Path | None = None,
+    execution_mode: str | None = None,
+) -> ModelPipelineConfig:
     """Load the config bundle for the modeling-baselines stage."""
     resolved_root = root_dir or repo_root()
-    project = load_project_config(resolved_root)
+    project = load_project_config(resolved_root, execution_mode=execution_mode)
 
     model_path = resolved_root / "config" / "model.yaml"
     logging_path = resolved_root / "config" / "logging.yaml"
@@ -317,6 +320,8 @@ def load_model_pipeline_config(root_dir: Path | None = None) -> ModelPipelineCon
         ),
         config_files={
             "model": model_path,
+            "execution": resolved_root / "config" / "execution.yaml",
+            "evaluation": resolved_root / "config" / "evaluation.yaml",
             "logging": logging_path,
             "paths": resolved_root / "config" / "paths.yaml",
             "backtest": resolved_root / "config" / "backtest.yaml",

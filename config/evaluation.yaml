@@ -1,0 +1,16 @@
+evidence_thresholds:
+  minimum_months_for_descriptive_segment: 3
+  minimum_months_for_broader_coverage_segment: 12
+
+segmentation:
+  include_fold: true
+  include_calendar_month: false
+  include_calendar_quarter: true
+  include_calendar_half_year: true
+  include_calendar_year: true
+  include_benchmark_direction: true
+  include_drawdown_state: true
+  drawdown_flat_threshold: -0.02
+  include_volatility_state: true
+  volatility_lookback_months: 3
+  volatility_state_split: "median"

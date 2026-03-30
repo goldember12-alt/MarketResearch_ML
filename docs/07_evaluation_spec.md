@@ -52,6 +52,7 @@ Current reporting outputs:
 
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/run_summary.json`
 - `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
@@ -86,8 +87,9 @@ The current implementation provides:
 - per-period aligned portfolio and benchmark return tables
 - a benchmark-aware exploratory strategy report
 - a model-aware exploratory strategy report for the current canonical model run
+- a top-level run summary with raw-data selection context and stage-level coverage counts
 - overlap-aware deterministic-vs-model comparison metrics computed only on shared realized dates
-- overlap-window regime and subperiod diagnostics broken out by fold, calendar bucket, and primary-benchmark direction
+- overlap-window regime and subperiod diagnostics broken out by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
 - held-out fold coverage and fold-level diagnostics derived from aggregated out-of-sample predictions
 - a machine-readable comparison summary for the model-aware reporting stage
 - a machine-readable subperiod comparison table for the model-aware reporting stage
@@ -105,6 +107,8 @@ The following remain deferred:
 - No model or strategy should be evaluated only in-sample.
 - Current model-stage metrics include both multi-window prediction diagnostics and a short aggregated out-of-sample model-driven backtest, but they remain exploratory.
 - Deterministic-vs-model comparisons must be computed only on overlapping realized dates when the model backtest covers fewer months than the deterministic baseline.
+- Segment evidence must be labeled explicitly as `insufficient_segment_history`, `descriptive_segment_evidence`, or `broader_coverage_exploratory_evidence` using the thresholds configured in `config/evaluation.yaml`.
+- The run summary must disclose whether a `research_scale` execution actually used broader local raw files or only sample fallback.
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.
