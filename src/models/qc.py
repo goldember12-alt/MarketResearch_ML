@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.data.standardize import assert_unique_keys
 from src.models.config import ModelPipelineConfig
+from src.models.windows import ModelFoldWindow
 
 
 def validate_input_keys(
@@ -35,6 +36,9 @@ def validate_feature_columns(frame: pd.DataFrame, feature_columns: tuple[str, ..
 
 def validate_split_windows(config: ModelPipelineConfig) -> None:
     """Validate chronological ordering and non-overlap of configured split windows."""
+    if config.splits.scheme != "fixed_date_windows":
+        return
+
     train_start = pd.Timestamp(config.splits.train.start_date)
     train_end = pd.Timestamp(config.splits.train.end_date)
     validation_start = pd.Timestamp(config.splits.validation.start_date)
@@ -54,26 +58,39 @@ def validate_split_windows(config: ModelPipelineConfig) -> None:
         raise ValueError("Validation and test windows must not overlap.")
 
 
-def validate_split_dataset(frame: pd.DataFrame) -> None:
-    """Validate that split assignment remains strictly chronological."""
-    required_splits = {"train", "validation", "test"}
-    observed_splits = set(frame["split"].unique())
-    if observed_splits != required_splits:
-        raise ValueError(
-            f"Modeling dataset must include train, validation, and test rows. Found {observed_splits}."
-        )
+def validate_modeling_dataset(frame: pd.DataFrame) -> None:
+    """Validate that the filtered modeling dataset is non-empty and uniquely keyed."""
+    if frame.empty:
+        raise ValueError("Modeling dataset is empty after label and feature eligibility filters.")
+    assert_unique_keys(frame, ["ticker", "date"], "modeling_dataset")
 
-    split_dates = (
-        frame.groupby("split", sort=False)["date"]
-        .agg(["min", "max", "nunique"])
-        .to_dict(orient="index")
-    )
-    if split_dates["train"]["max"] >= split_dates["validation"]["min"]:
-        raise ValueError("Training dates must end before validation dates begin.")
-    if split_dates["validation"]["max"] >= split_dates["test"]["min"]:
-        raise ValueError("Validation dates must end before test dates begin.")
-    if split_dates["train"]["max"] >= split_dates["test"]["min"]:
-        raise ValueError("Training and test dates must not overlap.")
+
+def validate_model_folds(folds: tuple[ModelFoldWindow, ...]) -> None:
+    """Validate chronological ordering and held-out uniqueness across folds."""
+    if not folds:
+        raise ValueError("At least one model fold is required.")
+
+    heldout_dates: list[pd.Timestamp] = []
+    for fold in folds:
+        if not fold.train_dates:
+            raise ValueError(f"{fold.fold_id} has no training dates.")
+        if not fold.test_dates:
+            raise ValueError(f"{fold.fold_id} has no test dates.")
+        if fold.validation_dates and fold.train_end_date >= fold.validation_start_date:
+            raise ValueError(f"{fold.fold_id} training dates overlap validation dates.")
+        if fold.validation_dates and fold.validation_end_date >= fold.test_start_date:
+            raise ValueError(f"{fold.fold_id} validation dates overlap test dates.")
+        if fold.train_end_date >= fold.test_start_date:
+            raise ValueError(f"{fold.fold_id} training dates overlap held-out test dates.")
+        heldout_dates.extend(fold.prediction_dates)
+
+    heldout_index = pd.Index(heldout_dates)
+    if heldout_index.has_duplicates:
+        duplicate_dates = heldout_index[heldout_index.duplicated()].strftime("%Y-%m-%d").tolist()
+        raise ValueError(
+            "Model folds produce duplicate held-out decision dates across windows: "
+            f"{duplicate_dates}"
+        )
 
 
 def validate_training_targets(frame: pd.DataFrame) -> None:
@@ -95,32 +112,19 @@ def build_qc_summary(
     deterministic_baseline_available: bool,
 ) -> dict[str, Any]:
     """Build a compact QC summary for model metadata."""
-    split_counts = (
-        dataset.groupby("split", sort=False)
-        .agg(
-            row_count=("ticker", "size"),
-            unique_dates=("date", "nunique"),
-            positive_labels=("true_label", lambda series: int(series.astype(int).sum())),
-        )
-        .to_dict(orient="index")
-    )
-
-    split_date_ranges = {
-        split: {
-            "decision_start": frame["date"].min().date().isoformat(),
-            "decision_end": frame["date"].max().date().isoformat(),
-            "realized_start": frame["realized_label_date"].min().date().isoformat(),
-            "realized_end": frame["realized_label_date"].max().date().isoformat(),
-        }
-        for split, frame in dataset.groupby("split", sort=False)
-    }
-
     return {
+        "eligible_row_count": int(len(dataset)),
+        "eligible_unique_dates": int(dataset["date"].nunique()),
+        "eligible_positive_labels": int(dataset["true_label"].astype(int).sum()),
+        "eligible_decision_date_range": {
+            "decision_start": dataset["date"].min().date().isoformat(),
+            "decision_end": dataset["date"].max().date().isoformat(),
+            "realized_start": dataset["realized_label_date"].min().date().isoformat(),
+            "realized_end": dataset["realized_label_date"].max().date().isoformat(),
+        },
         "configured_feature_count": len(feature_columns),
         "feature_columns": list(feature_columns),
         "label_target_type": label_definition["target_type"],
         "deterministic_baseline_available": deterministic_baseline_available,
-        "row_counts_by_split": split_counts,
-        "date_ranges_by_split": split_date_ranges,
         "dropped_rows": dropped_rows_summary,
     }

@@ -38,15 +38,16 @@ def _build_model_metadata(
     model_run,
 ) -> dict[str, Any]:
     """Assemble the canonical model_metadata.json payload."""
-    return {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "stage": "modeling_baselines",
-        "status": "exploratory_completed",
-        "model_type": selected_model,
-        "label_definition": dataset_bundle.label_metadata["definition"],
-        "label_settings": dataset_bundle.label_metadata,
-        "split_scheme": config.splits.scheme,
-        "split_windows": {
+    test_predictions = model_run.test_predictions
+    out_of_sample_date_range = {
+        "decision_start": test_predictions["date"].min().date().isoformat(),
+        "decision_end": test_predictions["date"].max().date().isoformat(),
+        "realized_start": test_predictions["realized_label_date"].min().date().isoformat(),
+        "realized_end": test_predictions["realized_label_date"].max().date().isoformat(),
+    }
+    split_windows: dict[str, Any]
+    if config.splits.scheme == "fixed_date_windows":
+        split_windows = {
             "train": {
                 "decision_start": config.splits.train.start_date,
                 "decision_end": config.splits.train.end_date,
@@ -59,21 +60,43 @@ def _build_model_metadata(
                 "decision_start": config.splits.test.start_date,
                 "decision_end": config.splits.test.end_date,
             },
-        },
+        }
+    else:
+        split_windows = {
+            "walk_forward": {
+                "min_train_periods": config.splits.walk_forward.min_train_periods,
+                "validation_window_periods": config.splits.walk_forward.validation_window_periods,
+                "test_window_periods": config.splits.walk_forward.test_window_periods,
+                "step_periods": config.splits.walk_forward.step_periods,
+            },
+            "folds": model_run.metadata["folds"],
+        }
+
+    return {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "stage": "modeling_baselines",
+        "status": "exploratory_completed",
+        "model_type": selected_model,
+        "label_definition": dataset_bundle.label_metadata["definition"],
+        "label_settings": dataset_bundle.label_metadata,
+        "split_scheme": config.splits.scheme,
+        "split_windows": split_windows,
+        "fold_count": len(model_run.metadata["folds"]),
+        "out_of_sample_date_range": out_of_sample_date_range,
         "feature_columns": list(config.dataset.feature_columns),
         "minimum_non_missing_features": config.dataset.minimum_non_missing_features,
         "preprocessing": model_run.metadata["preprocessing"],
         "model_hyperparameters": model_run.metadata["model_hyperparameters"],
         "classification_threshold": model_run.metadata["classification_threshold"],
-        "row_counts_by_split": dataset_bundle.qc_summary["row_counts_by_split"],
+        "eligible_dataset_summary": dataset_bundle.qc_summary,
         "dropped_rows_summary": dataset_bundle.dropped_rows_summary,
         "evaluation": model_run.metadata["metrics_by_split"],
+        "out_of_sample_evaluation": model_run.metadata["out_of_sample_metrics"],
         "deterministic_baseline_context": {
             "enabled": config.deterministic_baseline.enabled,
             "score_column": config.deterministic_baseline.score_column,
             "class_column": config.deterministic_baseline.class_column,
         },
-        "qc": dataset_bundle.qc_summary,
         "artifacts_written": [
             str(config.outputs.train_predictions),
             str(config.outputs.test_predictions),
@@ -82,11 +105,11 @@ def _build_model_metadata(
         ],
         "key_caveats": [
             "This stage predicts a future label aligned to the month-end t decision and future realized return window only; it does not itself create a tradable backtest.",
-            "Preprocessing is fit on training rows only, but the current sample history is short and uses deterministic local fixture data.",
+            "Preprocessing is refit separately inside each training fold only, but the current sample history is short and uses deterministic local fixture data.",
             "Fundamentals remain lagged heuristics rather than fully point-in-time-safe history, so revised-history bias risk still applies.",
             "Current metrics are descriptive classification diagnostics, not benchmark-quality evidence of alpha.",
         ],
-        "next_step": "Feed model scores into a model-driven portfolio construction and backtest path under the same benchmark and cost controls.",
+        "next_step": "Extend the multi-window model path with richer model-aware reporting and longer-history walk-forward evaluation on broader research data.",
     }
 
 
@@ -106,14 +129,18 @@ def _append_model_registry_record(
         "experiment_id": f"modeling_baselines_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
         "run_timestamp": metadata["generated_at_utc"],
         "stage": "modeling_baselines",
-        "purpose": "Fit a leakage-safe baseline classifier on the monthly feature panel and compare it to the deterministic signal context.",
+        "purpose": "Fit a leakage-safe baseline classifier on the monthly feature panel across chronological folds and compare it to the deterministic signal context.",
         "date_range": {
-            "train_decision_start": config.splits.train.start_date,
-            "train_decision_end": config.splits.train.end_date,
-            "validation_decision_start": config.splits.validation.start_date,
-            "validation_decision_end": config.splits.validation.end_date,
-            "test_decision_start": config.splits.test.start_date,
-            "test_decision_end": config.splits.test.end_date,
+            "eligible_decision_start": metadata["eligible_dataset_summary"]["eligible_decision_date_range"][
+                "decision_start"
+            ],
+            "eligible_decision_end": metadata["eligible_dataset_summary"]["eligible_decision_date_range"][
+                "decision_end"
+            ],
+            "out_of_sample_decision_start": metadata["out_of_sample_date_range"]["decision_start"],
+            "out_of_sample_decision_end": metadata["out_of_sample_date_range"]["decision_end"],
+            "out_of_sample_realized_start": metadata["out_of_sample_date_range"]["realized_start"],
+            "out_of_sample_realized_end": metadata["out_of_sample_date_range"]["realized_end"],
         },
         "universe_preset": config.project.universe.preset_name,
         "benchmark_set": [config.label.benchmark],
@@ -123,12 +150,19 @@ def _append_model_registry_record(
             "comparison_context": "deterministic_signal_top_n_selection",
             "holding_period_convention": "month_end_t_features_predict_realized_outcome_from_t_plus_1",
             "label_target_type": config.label.target_type,
+            "split_scheme": config.splits.scheme,
+            "fold_count": metadata["fold_count"],
         },
         "rebalance_frequency": config.project.backtest.frequency,
         "transaction_cost_bps": backtest_config.costs.transaction_cost_bps,
         "artifacts_written": metadata["artifacts_written"]
         + [str(config.outputs.experiment_registry)],
         "result_summary": {
+            "out_of_sample_accuracy": metadata["out_of_sample_evaluation"].get("accuracy"),
+            "out_of_sample_roc_auc": metadata["out_of_sample_evaluation"].get("roc_auc"),
+            "out_of_sample_average_precision": metadata["out_of_sample_evaluation"].get(
+                "average_precision"
+            ),
             "test_accuracy": test_metrics.get("accuracy"),
             "test_roc_auc": test_metrics.get("roc_auc"),
             "test_average_precision": test_metrics.get("average_precision"),
@@ -136,9 +170,9 @@ def _append_model_registry_record(
             "deterministic_test_roc_auc": deterministic_test_metrics.get("roc_auc"),
         },
         "interpretation": (
-            "This modeling run is exploratory and label-diagnostic only. It should not be treated "
-            "as a benchmark-quality out-of-sample portfolio result until model scores are routed "
-            "through the same portfolio construction and backtest controls as the deterministic baseline."
+            "This modeling run is exploratory and label-diagnostic only. Even with multi-window "
+            "out-of-sample folds, it should not be treated as benchmark-quality portfolio evidence "
+            "without longer-history data and model-score backtests under the shared portfolio controls."
         ),
         "status": "exploratory_completed",
         "next_step": metadata["next_step"],

@@ -36,10 +36,12 @@ The implemented writers append a new JSON object line for every successful `src.
 - records benchmark-aware result summaries drawn from the implemented backtest artifacts
 - stores exploratory interpretations and next-step guidance alongside each run
 - modeling-stage records mark the stage as `modeling_baselines`
-- modeling-stage records store the label definition, split window, selected model, and held-out classification diagnostics
+- modeling-stage records store the label definition, split scheme, fold count, out-of-sample date range, selected model, and classification diagnostics
 - modeling-stage records do not imply a model-driven backtest has been completed
 - model-backtest records mark the stage as `model_backtest`
-- model-backtest records store the model type, held-out prediction splits used for formation, and benchmark-aware backtest metrics
+- model-backtest records store the model type, aggregated out-of-sample prediction splits used for formation, split scheme or fold context, and benchmark-aware backtest metrics
+- model-aware reporting records mark the stage as `model_evaluation_report`
+- model-aware reporting records store both out-of-sample model diagnostics and model-driven benchmark-aware backtest metrics
 
 ## Tracking Rules
 

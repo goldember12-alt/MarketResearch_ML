@@ -57,13 +57,46 @@ class ModelDateWindow:
 
 
 @dataclass(frozen=True)
-class ModelSplitConfig:
-    """Chronological split settings for train, validation, and test."""
+class ModelFixedDateWindowsConfig:
+    """Explicit train/validation/test windows for the fixed split path."""
 
-    scheme: str
     train: ModelDateWindow
     validation: ModelDateWindow
     test: ModelDateWindow
+
+
+@dataclass(frozen=True)
+class ModelWalkForwardConfig:
+    """Expanding walk-forward settings for repeated out-of-sample evaluation."""
+
+    min_train_periods: int
+    validation_window_periods: int
+    test_window_periods: int
+    step_periods: int
+
+
+@dataclass(frozen=True)
+class ModelSplitConfig:
+    """Chronological split settings for fixed or multi-window evaluation."""
+
+    scheme: str
+    fixed_date_windows: ModelFixedDateWindowsConfig
+    walk_forward: ModelWalkForwardConfig
+
+    @property
+    def train(self) -> ModelDateWindow:
+        """Backwards-compatible access to the fixed training window."""
+        return self.fixed_date_windows.train
+
+    @property
+    def validation(self) -> ModelDateWindow:
+        """Backwards-compatible access to the fixed validation window."""
+        return self.fixed_date_windows.validation
+
+    @property
+    def test(self) -> ModelDateWindow:
+        """Backwards-compatible access to the fixed test window."""
+        return self.fixed_date_windows.test
 
 
 @dataclass(frozen=True)
@@ -178,6 +211,14 @@ def load_model_pipeline_config(root_dir: Path | None = None) -> ModelPipelineCon
     label_raw = model_raw["label"]
     dataset_raw = model_raw["dataset"]
     splits_raw = model_raw["splits"]
+    fixed_splits_raw = splits_raw.get("fixed_date_windows")
+    if fixed_splits_raw is None:
+        fixed_splits_raw = {
+            "train": splits_raw["train"],
+            "validation": splits_raw["validation"],
+            "test": splits_raw["test"],
+        }
+    walk_forward_raw = splits_raw.get("walk_forward", {})
     preprocessing_raw = model_raw["preprocessing"]
     classification_raw = model_raw["classification"]
     execution_raw = model_raw["execution"]
@@ -206,17 +247,27 @@ def load_model_pipeline_config(root_dir: Path | None = None) -> ModelPipelineCon
         ),
         splits=ModelSplitConfig(
             scheme=str(splits_raw["scheme"]),
-            train=ModelDateWindow(
-                start_date=str(splits_raw["train"]["start_date"]),
-                end_date=str(splits_raw["train"]["end_date"]),
+            fixed_date_windows=ModelFixedDateWindowsConfig(
+                train=ModelDateWindow(
+                    start_date=str(fixed_splits_raw["train"]["start_date"]),
+                    end_date=str(fixed_splits_raw["train"]["end_date"]),
+                ),
+                validation=ModelDateWindow(
+                    start_date=str(fixed_splits_raw["validation"]["start_date"]),
+                    end_date=str(fixed_splits_raw["validation"]["end_date"]),
+                ),
+                test=ModelDateWindow(
+                    start_date=str(fixed_splits_raw["test"]["start_date"]),
+                    end_date=str(fixed_splits_raw["test"]["end_date"]),
+                ),
             ),
-            validation=ModelDateWindow(
-                start_date=str(splits_raw["validation"]["start_date"]),
-                end_date=str(splits_raw["validation"]["end_date"]),
-            ),
-            test=ModelDateWindow(
-                start_date=str(splits_raw["test"]["start_date"]),
-                end_date=str(splits_raw["test"]["end_date"]),
+            walk_forward=ModelWalkForwardConfig(
+                min_train_periods=int(walk_forward_raw.get("min_train_periods", 0)),
+                validation_window_periods=int(
+                    walk_forward_raw.get("validation_window_periods", 0)
+                ),
+                test_window_periods=int(walk_forward_raw.get("test_window_periods", 0)),
+                step_periods=int(walk_forward_raw.get("step_periods", 0)),
             ),
         ),
         preprocessing=ModelPreprocessingConfig(
@@ -289,8 +340,27 @@ def load_model_pipeline_config(root_dir: Path | None = None) -> ModelPipelineCon
         raise ValueError("dataset.feature_columns must not be empty.")
     if config.dataset.minimum_non_missing_features < 0:
         raise ValueError("dataset.minimum_non_missing_features must be non-negative.")
-    if config.splits.scheme != "fixed_date_windows":
-        raise ValueError("Only splits.scheme='fixed_date_windows' is currently implemented.")
+    if config.splits.scheme not in {"fixed_date_windows", "expanding_walk_forward"}:
+        raise ValueError(
+            "splits.scheme must be 'fixed_date_windows' or 'expanding_walk_forward'."
+        )
+    if config.splits.scheme == "expanding_walk_forward":
+        if config.splits.walk_forward.min_train_periods <= 0:
+            raise ValueError("walk_forward.min_train_periods must be positive.")
+        if config.splits.walk_forward.validation_window_periods < 0:
+            raise ValueError("walk_forward.validation_window_periods must be non-negative.")
+        if config.splits.walk_forward.test_window_periods <= 0:
+            raise ValueError("walk_forward.test_window_periods must be positive.")
+        if config.splits.walk_forward.step_periods <= 0:
+            raise ValueError("walk_forward.step_periods must be positive.")
+        if config.splits.walk_forward.step_periods < (
+            config.splits.walk_forward.validation_window_periods
+            + config.splits.walk_forward.test_window_periods
+        ):
+            raise ValueError(
+                "walk_forward.step_periods must be at least as large as the combined "
+                "validation and test window lengths to avoid duplicate held-out dates."
+            )
     if not 0.0 < config.classification.class_threshold < 1.0:
         raise ValueError("classification.class_threshold must fall inside (0, 1).")
     if config.execution.selected_model not in {"logistic_regression", "random_forest"}:

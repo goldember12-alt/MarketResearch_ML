@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, modeling baselines, and an initial held-out model-driven backtest are implemented for the local-file-first workflow
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and model-aware reporting are implemented for the local-file-first workflow
 
 ## What Is Completed
 
@@ -26,20 +26,24 @@
 - `src.evaluation` includes structured benchmark-aware evaluation summaries derived from the backtest artifacts.
 - `src.reporting` includes:
   - markdown strategy-report rendering
+  - markdown model-strategy-report rendering
   - experiment-registry record creation
-  - JSONL append logic for meaningful evaluation-report, modeling-baseline, and model-backtest runs
+  - JSONL append logic for meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs
 - `src.models` includes:
   - config loading for the modeling stage
   - forward-label construction from the monthly panel
   - deterministic modeling-dataset assembly and duplicate-key validation
-  - config-driven fixed train/validation/test windows
-  - train-only median-imputation and scaling preprocessing
+  - config-driven fixed windows plus expanding walk-forward fold generation
+  - fold-local train-only median-imputation and scaling preprocessing
   - logistic-regression and random-forest baseline runners
-  - split-level classification metrics and compact QC metadata
-  - held-out model-score ranking conversion for backtesting
+  - split-level and aggregated out-of-sample classification metrics with fold-aware metadata
+  - aggregated out-of-sample model-score ranking conversion for backtesting
   - model-driven backtest summary and experiment-registry record construction
 - `src.run_evaluation_report.py` reads the backtest outputs and writes:
   - `outputs/reports/strategy_report.md`
+  - `outputs/reports/experiment_registry.jsonl`
+- `src.run_model_evaluation_report.py` reads the current canonical model metadata plus model-driven backtest outputs and writes:
+  - `outputs/reports/model_strategy_report.md`
   - `outputs/reports/experiment_registry.jsonl`
 - `src.run_modeling_baselines.py` reads the feature panel, monthly panel, and deterministic signal context and writes:
   - `outputs/models/train_predictions.parquet`
@@ -61,14 +65,15 @@
 - Focused modeling tests were added for:
   - forward-label alignment
   - duplicate-key detection
-  - chronological split construction
+  - expanding walk-forward split generation
   - preprocessing fit-on-train-only behavior
-  - logistic-regression baseline output shape
-  - random-forest baseline output shape
-  - feature-importance export
+  - backward-compatible fixed-window baseline output shape
+  - aggregated out-of-sample prediction assembly
+  - random-forest walk-forward output shape
+  - fold-aggregated feature-importance export
   - final-month missing-label handling
 - Focused model-backtest tests were added for:
-  - held-out split filtering
+  - aggregated out-of-sample split filtering
   - model-score ranking and top-N selection
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
@@ -77,7 +82,8 @@
   - `src.run_logistic_regression`
   - `src.run_random_forest`
   - `src.run_model_backtest`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `49 passed` on 2026-03-29.
+  - `src.run_model_evaluation_report`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `53 passed` on 2026-03-30.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -86,24 +92,28 @@
 - Resulting reporting artifacts were manually checked:
   - `strategy_report.md`: benchmark context, portfolio metrics, risk controls, caveats, interpretation, and next step present
   - `experiment_registry.jsonl`: append behavior confirmed and required high-level fields present
-- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines` completed successfully on 2026-03-29.
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines` completed successfully on 2026-03-30.
 - Resulting modeling artifacts were manually checked:
-  - `train_predictions.parquet`: train split only, model probabilities/classes, and deterministic comparison columns present
-  - `test_predictions.parquet`: validation and test rows present with split indicators
-  - `model_metadata.json`: label definition, split windows, preprocessing fit window, metrics, dropped-row summary, and caveats present
-  - `feature_importance.csv`: importance export present for the fitted model
-- `.\.venv\Scripts\python.exe -m src.run_model_backtest` completed successfully on 2026-03-29.
+  - `train_predictions.parquet`: concatenated fold-level train predictions present with `fold_id` and fold-window columns
+  - `test_predictions.parquet`: aggregated out-of-sample rows present for decision dates `2024-04-30` and `2024-05-31`, with split `test` only
+  - `model_metadata.json`: split scheme `expanding_walk_forward`, fold count `2`, out-of-sample date range, preprocessing fold summary, metrics, dropped-row summary, and caveats present
+  - `feature_importance.csv`: fold-aggregated importance export present for the fitted model
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest` completed successfully on 2026-03-30.
 - Resulting model-driven backtest artifacts were manually checked:
-  - `model_signal_rankings.parquet`: held-out prediction rows ranked cross-sectionally by model score
+  - `model_signal_rankings.parquet`: aggregated out-of-sample prediction rows ranked cross-sectionally by model score for decision dates `2024-04-30` and `2024-05-31`
   - `model_portfolio_returns.parquet`: realized model-driven returns aligned to the explicit `t+1` realized dates
   - `model_risk_metrics_summary.csv`: portfolio and benchmark metrics present
-  - `model_backtest_summary.json`: model type, prediction splits used, shared backtest metrics, and caveats present
+  - `model_backtest_summary.json`: model type, split scheme, fold count, prediction splits used, shared backtest metrics, and caveats present
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
+- Resulting model-aware reporting artifacts were manually checked:
+  - `model_strategy_report.md`: model diagnostics, portfolio metrics, benchmark comparison, risk controls, caveats, interpretation, and next step present
+  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report`
 - Previous manual verification for `src.run_backtest` remains valid:
   - the backtest outputs used by reporting and modeling comparison context were present and aligned before the modeling run
 
 ## Immediate Next Step
 
-- Expand the current short held-out model backtest into walk-forward multi-window evaluation and add model-aware reporting comparable to the deterministic strategy report.
+- Extend walk-forward evaluation over longer research history and add richer robustness diagnostics and attribution for model-driven runs.
 
 ## Known Risks / Open Issues
 
@@ -112,7 +122,7 @@
 - Fundamentals-derived features and signals therefore still carry revised-history bias risk.
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
-- The current model-driven backtest only spans the available held-out validation/test window, so realized-period coverage is still short.
+- The current model-driven backtest now uses aggregated out-of-sample windows, but realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.
 - Reporting is now implemented, but richer regime diagnostics and attribution are still deferred.
 
@@ -149,6 +159,7 @@
 - `outputs/backtests/model_performance_by_period.csv`
 - `outputs/backtests/model_risk_metrics_summary.csv`
 - `outputs/reports/strategy_report.md`
+- `outputs/reports/model_strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 - `outputs/models/train_predictions.parquet`
 - `outputs/models/test_predictions.parquet`

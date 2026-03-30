@@ -96,16 +96,18 @@ def build_model_backtest_summary(
             "signal_source": "model_predictions",
             "model_type": model_metadata["model_type"],
             "model_label_definition": model_metadata["label_definition"],
+            "model_split_scheme": model_metadata["split_scheme"],
+            "model_fold_count": model_metadata.get("fold_count"),
             "prediction_score_column": signal_metadata["score_column"],
             "prediction_splits_used": signal_metadata["prediction_splits"],
             "feature_columns": model_metadata["feature_columns"],
             "status": "exploratory_completed",
             "key_caveats": [
-                "This is a held-out model-score backtest based only on the currently available validation/test prediction windows.",
+                "This is a model-score backtest built only from aggregated out-of-sample prediction windows.",
                 "The realized sample is still very short, so return metrics are descriptive only.",
                 "Fundamentals remain lagged heuristics rather than fully point-in-time-safe history.",
             ],
-            "next_step": "Expand to walk-forward multi-window model backtests and align model-driven reporting with the deterministic evaluation outputs.",
+            "next_step": "Extend the multi-window model backtest with richer reporting, longer realized history, and broader robustness diagnostics.",
         }
     )
     return summary
@@ -141,6 +143,8 @@ def build_model_backtest_registry_record(
             "cash_handling_policy": backtest_summary["cash_handling_policy"],
             "holding_period_convention": backtest_summary["holding_period_convention"],
             "prediction_splits_used": backtest_summary["prediction_splits_used"],
+            "model_split_scheme": backtest_summary.get("model_split_scheme"),
+            "model_fold_count": backtest_summary.get("model_fold_count"),
         },
         "rebalance_frequency": backtest_summary["rebalance_frequency"],
         "transaction_cost_bps": backtest_summary["transaction_cost_bps"],
@@ -152,8 +156,9 @@ def build_model_backtest_registry_record(
             "portfolio_period_count": backtest_summary.get("portfolio_period_count"),
         },
         "interpretation": (
-            "This model-driven backtest is exploratory because it uses a short held-out sample "
-            "and fixture-style local data. It is useful for pipeline verification, not for strong strategy claims."
+            "This model-driven backtest is exploratory because it uses a short aggregated "
+            "out-of-sample sample and fixture-style local data. It is useful for pipeline "
+            "verification, not for strong strategy claims."
         ),
         "status": backtest_summary["status"],
         "next_step": backtest_summary["next_step"],

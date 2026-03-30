@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from src.backtest.config import BacktestPipelineConfig
+from src.models.config import ModelPipelineConfig
 from src.signals.config import SignalPipelineConfig
 from src.utils.config import ProjectConfig
 
@@ -94,6 +95,27 @@ def _bias_caveats() -> list[str]:
         "Current sample data are local deterministic fixtures rather than benchmark-quality research data.",
         "The current history is short, so annualized metrics are unstable and descriptive only.",
         "Cash is assumed to earn 0.0 and transaction costs use a simple linear turnover model.",
+    ]
+
+
+def _model_risk_controls() -> list[str]:
+    """Return the currently implemented model-path risk controls."""
+    return [
+        "Model labels align month-end decision date t to realized outcomes at month-end t+1 only.",
+        "Chronological fold generation is explicit and config-driven; no random row shuffling is used.",
+        "Preprocessing is refit separately inside each fold on training rows only.",
+        "Model-driven backtests consume only aggregated out-of-sample predictions, never in-fold training predictions.",
+        "Model backtests reuse the same turnover, cost, holdings, and benchmark logic as the deterministic baseline.",
+    ]
+
+
+def _model_bias_caveats() -> list[str]:
+    """Return the current known model-path caveats that must accompany reported results."""
+    return [
+        "Fundamentals are lagged but not truly point-in-time safe, so revised-history bias remains possible.",
+        "Current sample data are local deterministic fixtures rather than benchmark-quality research data.",
+        "The current walk-forward history is short, so model diagnostics and annualized portfolio metrics are descriptive only.",
+        "Canonical model artifact paths are overwritten by the latest selected-model run unless richer versioning is added later.",
     ]
 
 
@@ -190,4 +212,122 @@ def build_evaluation_summary(
         "qc_summary": backtest_summary.get("qc", {}),
         "interpretation": interpretation,
         "next_step": "Implement chronology-safe modeling baselines and compare them against the deterministic signal baseline.",
+    }
+
+
+def build_model_evaluation_summary(
+    *,
+    project_config: ProjectConfig,
+    model_config: ModelPipelineConfig,
+    backtest_config: BacktestPipelineConfig,
+    model_metadata: dict[str, Any],
+    model_backtest_summary: dict[str, Any],
+    portfolio_returns: pd.DataFrame,
+    performance_by_period: pd.DataFrame,
+    risk_metrics_summary: pd.DataFrame,
+) -> dict[str, Any]:
+    """Build a report-ready summary for the model-driven backtest and modeling diagnostics."""
+    metrics_by_series = _metrics_lookup(risk_metrics_summary)
+    portfolio_net_metrics = metrics_by_series.get("portfolio_net", {})
+    benchmark_comparison = _build_benchmark_comparison(
+        performance_by_period,
+        metrics_by_series,
+        backtest_config.benchmarks.identifiers,
+    )
+
+    realized_period_count = int(len(portfolio_returns))
+    positive_periods = (
+        int((portfolio_returns["portfolio_net_return"] > 0.0).sum())
+        if not portfolio_returns.empty
+        else 0
+    )
+    cumulative_return = portfolio_net_metrics.get("cumulative_return")
+    if cumulative_return is None:
+        portfolio_result_text = (
+            f"Across {realized_period_count} realized model-backtest monthly periods, the portfolio "
+            "net cumulative return was unavailable. "
+        )
+    else:
+        portfolio_result_text = (
+            f"Across {realized_period_count} realized model-backtest monthly periods, the portfolio "
+            f"net cumulative return was {cumulative_return:.2%}. "
+        )
+    interpretation = "This model run is exploratory. " + portfolio_result_text + (
+        "The model is now evaluated through chronology-safe out-of-sample folds and a downstream "
+        "model-driven backtest, but the sample remains short, the data are local fixtures, and "
+        "fundamentals are not point-in-time safe."
+    )
+
+    return {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "purpose": "Summarize the model-driven backtest together with the current model's out-of-sample diagnostics and log an exploratory model evaluation run.",
+        "status": "exploratory_completed",
+        "universe_preset": project_config.universe.preset_name,
+        "benchmark_set": list(backtest_config.benchmarks.identifiers),
+        "feature_set": list(model_config.dataset.feature_columns),
+        "signal_or_model": model_metadata["model_type"],
+        "date_range": {
+            "formation_start": model_backtest_summary.get("formation_start_date"),
+            "formation_end": model_backtest_summary.get("formation_end_date"),
+            "realized_start": model_backtest_summary.get("realized_start_date"),
+            "realized_end": model_backtest_summary.get("realized_end_date"),
+            "prediction_decision_start": model_metadata.get("out_of_sample_date_range", {}).get(
+                "decision_start"
+            ),
+            "prediction_decision_end": model_metadata.get("out_of_sample_date_range", {}).get(
+                "decision_end"
+            ),
+        },
+        "portfolio_rules": {
+            "selection_method": backtest_config.portfolio.selection_method,
+            "selected_top_n": backtest_config.portfolio.selected_top_n,
+            "weighting_scheme": backtest_config.portfolio.weighting_scheme,
+            "max_weight": backtest_config.portfolio.max_weight,
+            "cash_handling_policy": backtest_config.portfolio.cash_handling_policy,
+            "holding_period_convention": model_backtest_summary.get("holding_period_convention"),
+            "prediction_score_column": model_backtest_summary.get("prediction_score_column"),
+            "prediction_splits_used": model_backtest_summary.get("prediction_splits_used"),
+        },
+        "rebalance_frequency": backtest_config.rebalancing.frequency,
+        "transaction_cost_bps": backtest_config.costs.transaction_cost_bps,
+        "slippage_bps": backtest_config.costs.slippage_bps,
+        "portfolio_metrics": {
+            "gross": metrics_by_series.get("portfolio_gross", {}),
+            "net": portfolio_net_metrics,
+        },
+        "benchmark_metrics": {
+            benchmark_id: metrics_by_series.get(benchmark_id, {})
+            for benchmark_id in backtest_config.benchmarks.identifiers
+        },
+        "benchmark_comparison": benchmark_comparison,
+        "sample_characteristics": {
+            "realized_period_count": realized_period_count,
+            "positive_net_month_count": positive_periods,
+            "positive_net_month_share": (
+                None if realized_period_count == 0 else positive_periods / realized_period_count
+            ),
+            "average_turnover": _as_float_or_none(portfolio_returns["turnover"].mean())
+            if not portfolio_returns.empty
+            else None,
+            "max_turnover": _as_float_or_none(portfolio_returns["turnover"].max())
+            if not portfolio_returns.empty
+            else None,
+        },
+        "model_diagnostics": {
+            "model_type": model_metadata["model_type"],
+            "label_definition": model_metadata["label_definition"],
+            "split_scheme": model_metadata["split_scheme"],
+            "fold_count": model_metadata.get("fold_count"),
+            "out_of_sample_date_range": model_metadata.get("out_of_sample_date_range", {}),
+            "out_of_sample_evaluation": model_metadata.get("out_of_sample_evaluation", {}),
+            "classification_threshold": model_metadata.get("classification_threshold"),
+            "deterministic_baseline_context": model_metadata.get(
+                "deterministic_baseline_context", {}
+            ),
+        },
+        "risk_controls": _model_risk_controls(),
+        "bias_caveats": _model_bias_caveats(),
+        "qc_summary": model_backtest_summary.get("qc", {}),
+        "interpretation": interpretation,
+        "next_step": "Extend model-aware reporting with longer-history walk-forward coverage and richer robustness diagnostics.",
     }

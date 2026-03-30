@@ -2,7 +2,7 @@
 
 ## Architectural Goal
 
-The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, baseline evaluation reporting, modeling baselines, and a held-out model-driven backtest.
+The system is organized as a stage-based research pipeline with explicit inputs, outputs, and artifact contracts. The implemented boundary now covers raw-to-processed data ingestion, canonical monthly panel assembly, leakage-safe monthly feature generation, deterministic cross-sectional signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, and an aggregated out-of-sample model-driven backtest.
 
 ## Canonical Stage Flow
 
@@ -26,6 +26,8 @@ The system is organized as a stage-based research pipeline with explicit inputs,
    Add chronology-safe baselines only after deterministic baselines exist.
 10. `src.models`
    Convert held-out model scores into cross-sectional rankings and run a model-driven backtest.
+11. `src.reporting`
+   Write a model-aware exploratory report from the model-backtest and model-metadata artifacts.
 
 ## Implemented Raw-To-Report Flow
 
@@ -120,20 +122,30 @@ Deterministic sample raw files are included in the repo so the implemented stage
 
 1. read `feature_panel`, `monthly_panel`, and optional deterministic signal context
 2. build future labels aligned to month-end `t` features and realized month-end `t+1` outcomes
-3. assign rows into configured train, validation, and test windows
-4. fit preprocessing on training rows only
-5. fit the configured baseline model
-6. write train/test predictions, feature importance, and model metadata
+3. build the eligible modeling dataset without leaking future split assignment into the base table
+4. generate configured fixed-window or expanding walk-forward folds
+5. fit preprocessing separately inside each fold's training rows only
+6. fit the configured baseline model in each fold and accumulate train plus out-of-sample predictions
+7. write canonical aggregated prediction, feature-importance, and metadata artifacts
 
 ### Model-Driven Backtest Stage
 
 `src.run_model_backtest` performs:
 
-1. read held-out `test_predictions`, `model_metadata`, `monthly_panel`, and `benchmarks_monthly`
-2. convert held-out model scores into monthly top-N ranking selections
+1. read aggregated out-of-sample `test_predictions`, `model_metadata`, `monthly_panel`, and `benchmarks_monthly`
+2. convert those out-of-sample model scores into monthly top-N ranking selections
 3. reuse the shared backtest holdings, trades, returns, metrics, and QC modules
 4. write model-specific backtest artifacts under `outputs/backtests/model_*`
 5. append one exploratory model-backtest record to the experiment registry
+
+### Model Evaluation And Reporting Stage
+
+`src.run_model_evaluation_report` performs:
+
+1. read `model_metadata`, `model_backtest_summary`, model return artifacts, and model comparison tables
+2. combine out-of-sample classification diagnostics with model-driven backtest metrics
+3. render `outputs/reports/model_strategy_report.md`
+4. append one model-aware exploratory record to `outputs/reports/experiment_registry.jsonl`
 
 ## Implemented Module Responsibilities
 
@@ -158,10 +170,11 @@ Deterministic sample raw files are included in the repo so the implemented stage
 | `src.models.config` | modeling-stage config loading and logging setup |
 | `src.models.labels` | forward-return label construction |
 | `src.models.datasets` | chronology-safe modeling dataset assembly |
+| `src.models.windows` | deterministic fixed-window and walk-forward fold generation |
 | `src.models.preprocessing` | train-only preprocessing pipeline |
 | `src.models.baselines` | baseline model fitting, scoring, and importance export |
 | `src.models.evaluation` | split-level classification diagnostics |
-| `src.models.backtest` | held-out model score ranking and model-backtest summaries |
+| `src.models.backtest` | aggregated out-of-sample model score ranking and model-backtest summaries |
 
 ## Design Rules In Force
 
@@ -177,8 +190,8 @@ Deterministic sample raw files are included in the repo so the implemented stage
 
 ## Immediate Next Boundary
 
-The next critical path is expanding the model path:
+The next critical path is improving interpretation around the expanded model path:
 
-- add walk-forward or expanding-window multi-window model backtests
 - add model-aware reporting comparable to the deterministic evaluation workflow
-- preserve leakage-safe chronology as model evaluation broadens
+- extend walk-forward evaluation over longer and richer research history
+- add broader robustness diagnostics while preserving leakage-safe chronology

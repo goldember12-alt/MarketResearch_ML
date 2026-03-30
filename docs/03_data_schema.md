@@ -378,6 +378,22 @@ Current contents:
 - cautious interpretation
 - next recommended implementation step
 
+### `outputs/reports/model_strategy_report.md`
+
+Current contents:
+
+- run status and timestamp
+- model type, label definition, split scheme, and fold count
+- prediction and realized date ranges
+- benchmark, rebalance, and cost assumptions
+- out-of-sample classification diagnostics
+- model-driven portfolio summary metrics
+- explicit benchmark comparison
+- risk controls
+- bias caveats
+- cautious interpretation
+- next recommended implementation step
+
 ### `outputs/reports/experiment_registry.jsonl`
 
 One JSON object per line with at minimum:
@@ -400,13 +416,13 @@ One JSON object per line with at minimum:
 - `status`
 - `next_step`
 
-Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`.
+Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`. Model-aware reporting runs append with `stage = "model_evaluation_report"`.
 
 ### `outputs/models/train_predictions.parquet`
 
 Primary key:
 
-- `ticker`, `date`
+- `fold_id`, `ticker`, `date`
 
 Columns:
 
@@ -422,7 +438,16 @@ Columns:
 | `forward_raw_return` | float | realized next-period raw return used in label construction |
 | `forward_benchmark_return` | float | realized next-period benchmark return used in label construction |
 | `forward_excess_return` | float | realized next-period raw return minus benchmark return |
-| `split` | string | currently `train` only in this artifact |
+| `split` | string | `train` in this artifact |
+| `fold_id` | string | deterministic fold identifier such as `fold_001` |
+| `fold_index` | int | 1-based fold order |
+| `fold_scheme` | string | `fixed_date_windows` or `expanding_walk_forward` |
+| `train_window_start` | timestamp | first decision date used in the fold's training window |
+| `train_window_end` | timestamp | last decision date used in the fold's training window |
+| `validation_window_start` | timestamp or null | first validation decision date when the fold includes validation rows |
+| `validation_window_end` | timestamp or null | last validation decision date when the fold includes validation rows |
+| `test_window_start` | timestamp | first test decision date for the fold |
+| `test_window_end` | timestamp | last test decision date for the fold |
 | `model_feature_non_missing_count` | int | count of configured model features available before preprocessing |
 | `model_type` | string | current fitted model identifier |
 | `predicted_probability` | float | model-estimated probability for class `1` |
@@ -443,7 +468,13 @@ Columns:
 | Column | Type | Notes |
 | --- | --- | --- |
 | all columns from `train_predictions.parquet` | mixed | same schema for held-out scoring |
-| `split` | string | currently `validation` or `test` |
+| `split` | string | held-out split label, currently `test` under the default walk-forward scheme |
+
+Behavior notes:
+
+- this artifact is the canonical aggregated out-of-sample prediction history
+- held-out decision dates must be unique across folds before the artifact is written
+- `src.run_model_backtest` must consume this artifact only, never in-fold train predictions
 
 ### `outputs/models/feature_importance.csv`
 
@@ -456,10 +487,12 @@ Columns:
 | Column | Type | Notes |
 | --- | --- | --- |
 | `feature` | string | configured model feature name |
-| `importance` | float | absolute coefficient magnitude or impurity importance |
-| `signed_importance` | float | signed coefficient for logistic regression, same as `importance` for random forest |
+| `importance` | float | mean absolute coefficient magnitude or mean impurity importance across folds |
+| `signed_importance` | float | mean signed coefficient for logistic regression, mean impurity importance for random forest |
 | `importance_type` | string | `standardized_logistic_coefficient` or `impurity_importance` |
 | `model_type` | string | fitted model identifier that produced the export |
+| `window_count` | int | number of fitted folds included in the aggregation |
+| `aggregation_method` | string | currently `mean_across_folds` |
 
 ### `outputs/models/model_metadata.json`
 
@@ -467,15 +500,16 @@ Structure:
 
 - run timestamp and stage status
 - label definition and label settings
-- configured chronological split windows
+- configured split scheme and fold windows
+- fold count and out-of-sample date range
 - configured feature list and minimum non-missing rule
-- preprocessing fit settings and fit window
+- preprocessing fit settings and fold-fit summary
 - model type and core hyperparameters
-- row counts by split
+- eligible dataset summary
 - dropped-row summary
 - split-level model metrics
+- aggregated out-of-sample metrics
 - deterministic baseline comparison context
-- compact QC summary
 - artifact paths, caveats, and next recommended implementation step
 
 ### `outputs/models/model_signal_rankings.parquet`
@@ -573,6 +607,7 @@ Structure:
 - shared backtest summary fields from the deterministic backtest
 - model type
 - model label definition
+- model split scheme and fold count
 - prediction score column used for ranking
 - held-out prediction splits used for portfolio formation
 - compact QC summary
@@ -624,9 +659,9 @@ The evaluation-report stage currently writes:
 
 Model QC currently lives inside `outputs/models/model_metadata.json` and includes:
 
-- row counts by split
-- decision and realized date ranges by split
-- dropped-row counts for missing labels, insufficient features, and out-of-window rows
+- eligible row counts and eligible decision/realized date range
+- split scheme, fold windows, and fold count
+- dropped-row counts for missing labels and insufficient features
 - whether deterministic baseline context was available
 
 ## Change Control

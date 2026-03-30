@@ -4,7 +4,12 @@
 
 Modeling is a later but first-class stage that begins only after the deterministic feature, signal, backtest, and reporting workflow is in place.
 
-The implemented baseline modeling stage now extends into a held-out model-driven backtest, but only for the currently available validation/test prediction window. It is still exploratory.
+The implemented baseline modeling stage now supports both:
+
+- backward-compatible fixed date windows
+- expanding walk-forward multi-window evaluation that accumulates a deterministic out-of-sample prediction history
+
+The model-driven backtest consumes only the aggregated out-of-sample prediction artifact and remains exploratory because the current local sample history is still short.
 
 ## Implemented Baseline Runners
 
@@ -17,7 +22,7 @@ Runner behavior:
 - `src.run_modeling_baselines` writes the configured `execution.selected_model` run to the canonical model output paths
 - `src.run_logistic_regression` writes a logistic-regression run to those same canonical paths
 - `src.run_random_forest` writes a random-forest run to those same canonical paths
-- `src.run_model_backtest` reads the current canonical held-out model predictions and writes separate `model_*` backtest artifacts
+- `src.run_model_backtest` reads the current canonical aggregated out-of-sample model predictions and writes separate `model_*` backtest artifacts
 
 ## Implemented Label Definition
 
@@ -68,24 +73,55 @@ Implemented dataset rules:
   - realized forward raw, benchmark, and excess returns
   - deterministic signal context when available
 
+The dataset builder now creates the full eligible modeling universe first. Fold assignment happens later inside the model runner so the same decision month can safely appear in the training history of later folds without being mislabeled in the base dataset.
+
 ## Chronological Split Logic
 
-The current implementation supports explicit fixed date windows only:
+Supported schemes:
 
-- `scheme`: `fixed_date_windows`
+- `fixed_date_windows`
+- `expanding_walk_forward`
 
-Default configured windows:
+### Fixed Date Windows
 
-- train: `2024-02-29` through `2024-03-31`
-- validation: `2024-04-30`
-- test: `2024-05-31`
+Backward-compatible fixed-window settings remain available through:
+
+- `splits.fixed_date_windows.train`
+- `splits.fixed_date_windows.validation`
+- `splits.fixed_date_windows.test`
+
+This path produces one fold with explicit train, validation, and test date windows.
+
+### Expanding Walk-Forward
+
+Current default settings in `config/model.yaml`:
+
+- `scheme`: `expanding_walk_forward`
+- `min_train_periods`: `2`
+- `validation_window_periods`: `0`
+- `test_window_periods`: `1`
+- `step_periods`: `1`
+
+Implemented behavior:
+
+- each fold trains on all eligible decision months strictly earlier than its held-out prediction month
+- preprocessing is fit separately inside each fold's training rows only
+- held-out predictions are emitted only for the configured validation and test windows in that fold
+- held-out months must be unique across folds
+- `step_periods` must be at least `validation_window_periods + test_window_periods` so aggregated out-of-sample predictions do not duplicate decision dates
+
+Current default walk-forward convention on the seeded sample:
+
+- fold 1 train: `2024-02-29` through `2024-03-31`, test: `2024-04-30`
+- fold 2 train: `2024-02-29` through `2024-04-30`, test: `2024-05-31`
 
 Implemented chronology safeguards:
 
-- train, validation, and test windows must be strictly ordered and non-overlapping
-- split assignment uses decision dates only
-- validation and test rows are never used during preprocessing fit
-- the held-out test window remains chronologically after training and validation
+- no random shuffling
+- fold training dates must end before that fold's validation or test dates begin
+- validation and test dates within a fold must not overlap
+- aggregated held-out decision dates across folds must be unique
+- train-only preprocessing is refit separately inside each fold
 
 ## Preprocessing
 
@@ -96,6 +132,7 @@ Implemented preprocessing rules:
 - scaling is fit on training rows only
 - preprocessing is applied through a fit/transform pipeline
 - all-empty training columns are preserved through imputation rather than being dropped silently
+- under multi-window evaluation, the preprocessing pipeline is refit independently in each fold
 
 Current default preprocessing in `config/model.yaml`:
 
@@ -129,7 +166,7 @@ as predictive input features.
 
 - regularized binary logistic classifier
 - config-driven `C`, solver, and max-iteration settings
-- trained on preprocessed training rows only
+- trained on fold-specific preprocessed training rows only
 
 ### Random Forest
 
@@ -147,20 +184,28 @@ Canonical outputs:
 - `outputs/models/model_metadata.json`
 - `outputs/models/feature_importance.csv`
 
+Current prediction-artifact behavior:
+
+- `train_predictions.parquet` contains the concatenated in-fold training predictions across folds
+- `test_predictions.parquet` contains the concatenated out-of-sample prediction history across folds
+- both artifacts include `fold_id`, `fold_index`, fold scheme, and fold window boundary columns
+- under the current walk-forward settings, `test_predictions.parquet` is unique on `ticker`, `date` and is the canonical model-backtest input
+
 Current metadata includes:
 
 - label definition and settings
-- split windows
+- split scheme and fold settings
+- fold count and per-fold window definitions
 - feature list used
-- preprocessing choices and fit window
+- preprocessing choices and fold-fit summary
 - model type and hyperparameters
-- row counts by split
-- dropped-row summary
+- eligible dataset summary and dropped-row summary
 - split-level classification metrics
+- aggregated out-of-sample classification metrics
 - deterministic baseline comparison context
-- caveats and next step
+- artifact paths, caveats, and next step guidance
 
-Current evaluation metrics by split:
+Current evaluation metrics:
 
 - row count
 - positive-label count and rate
@@ -185,8 +230,9 @@ Implemented export behavior:
 
 - logistic regression writes absolute and signed standardized coefficients
 - random forest writes impurity-based feature importances
+- multi-window runs aggregate feature importance by mean across fitted folds and record `window_count`
 
-Both are written to the shared canonical path:
+The export is written to:
 
 - `outputs/models/feature_importance.csv`
 
@@ -196,28 +242,28 @@ Successful modeling runs append a cautious exploratory record to:
 
 - `outputs/reports/experiment_registry.jsonl`
 
-These records are not model-driven backtest claims. They document the label, feature set, split window, fitted model, and held-out classification diagnostics only.
+These records document the label, feature set, split scheme, fold count, out-of-sample date range, fitted model, and classification diagnostics. They are still not benchmark-quality portfolio claims by themselves.
 
 ## Model-Driven Backtest Extension
 
-The current repo now supports a held-out model-driven backtest with these rules:
+The current repo now supports a multi-window model-driven backtest with these rules:
 
 - source predictions come from `outputs/models/test_predictions.parquet`
-- only configured held-out splits are eligible for portfolio formation, currently `validation` and `test`
+- only configured out-of-sample splits are eligible for portfolio formation, currently `test`
 - `predicted_probability` is reused as the ranking score
 - the shared backtest engine applies the same top-N selection, weighting, turnover, cost, and benchmark logic used by the deterministic baseline
 - outputs are written to separate `model_*` artifacts under `outputs/backtests/`
 
 Current limitation:
 
-- the present sample only yields a short held-out realized window, so this stage is useful for plumbing verification and preliminary comparison only
+- the seeded sample still yields only a short realized model-backtest window, so this stage is useful for pipeline verification and exploratory comparison only
 
 ## Deferred Work
 
 Still deferred after this stage:
 
-- walk-forward or expanding-window multi-fold validation
-- broader model-driven backtests across longer history
-- richer benchmark-relative attribution and reporting
+- longer-history walk-forward evaluation on richer research data
+- richer model-aware reporting and attribution
+- broader robustness analysis across regimes and universes
 - hyperparameter search beyond simple baselines
 - any deep learning model family

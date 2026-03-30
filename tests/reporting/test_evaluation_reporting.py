@@ -9,9 +9,14 @@ from uuid import uuid4
 import pandas as pd
 
 from src.backtest.config import load_backtest_pipeline_config
-from src.evaluation.summary import build_evaluation_summary
-from src.reporting.markdown import render_strategy_report
-from src.reporting.registry import append_experiment_record, build_experiment_record
+from src.evaluation.summary import build_evaluation_summary, build_model_evaluation_summary
+from src.models.config import load_model_pipeline_config
+from src.reporting.markdown import render_model_strategy_report, render_strategy_report
+from src.reporting.registry import (
+    append_experiment_record,
+    build_experiment_record,
+    build_model_experiment_record,
+)
 from src.signals.config import load_signal_pipeline_config
 from src.utils.config import load_project_config
 
@@ -127,6 +132,46 @@ def _risk_metrics_summary_fixture() -> pd.DataFrame:
     )
 
 
+def _model_metadata_fixture() -> dict[str, object]:
+    return {
+        "model_type": "logistic_regression",
+        "label_definition": "forward_excess_return_top_n_binary",
+        "split_scheme": "expanding_walk_forward",
+        "fold_count": 2,
+        "classification_threshold": 0.5,
+        "out_of_sample_date_range": {
+            "decision_start": "2024-04-30",
+            "decision_end": "2024-05-31",
+            "realized_start": "2024-05-31",
+            "realized_end": "2024-06-30",
+        },
+        "out_of_sample_evaluation": {
+            "row_count": 8,
+            "accuracy": 0.75,
+            "roc_auc": 0.8,
+            "average_precision": 0.78,
+        },
+        "deterministic_baseline_context": {
+            "enabled": True,
+            "score_column": "composite_score",
+            "class_column": "selected_top_n",
+        },
+    }
+
+
+def _model_backtest_summary_fixture() -> dict[str, object]:
+    return {
+        "formation_start_date": "2024-04-30",
+        "formation_end_date": "2024-05-31",
+        "realized_start_date": "2024-05-31",
+        "realized_end_date": "2024-06-30",
+        "holding_period_convention": "Signals at t form holdings for realized returns at t+1.",
+        "prediction_score_column": "predicted_probability",
+        "prediction_splits_used": ["test"],
+        "qc": {"benchmark_alignment_ok": True, "missing_realized_return_count": 0},
+    }
+
+
 def test_build_evaluation_summary_includes_benchmark_comparison() -> None:
     """Evaluation summaries should include benchmark-aware comparisons and caveats."""
     project_config = load_project_config()
@@ -177,6 +222,57 @@ def test_render_strategy_report_outputs_key_sections() -> None:
     assert "## Bias Caveats" in report
 
 
+def test_build_model_evaluation_summary_includes_model_diagnostics() -> None:
+    """Model evaluation summaries should include both model and portfolio context."""
+    project_config = load_project_config()
+    model_config = load_model_pipeline_config()
+    backtest_config = load_backtest_pipeline_config()
+
+    summary = build_model_evaluation_summary(
+        project_config=project_config,
+        model_config=model_config,
+        backtest_config=backtest_config,
+        model_metadata=_model_metadata_fixture(),
+        model_backtest_summary=_model_backtest_summary_fixture(),
+        portfolio_returns=_portfolio_returns_fixture(),
+        performance_by_period=_performance_by_period_fixture(),
+        risk_metrics_summary=_risk_metrics_summary_fixture(),
+    )
+
+    assert summary["status"] == "exploratory_completed"
+    assert summary["model_diagnostics"]["split_scheme"] == "expanding_walk_forward"
+    assert summary["model_diagnostics"]["fold_count"] == 2
+    assert summary["model_diagnostics"]["out_of_sample_evaluation"]["accuracy"] == 0.75
+
+
+def test_render_model_strategy_report_outputs_key_sections() -> None:
+    """Rendered model reports should contain diagnostics and portfolio sections."""
+    project_config = load_project_config()
+    model_config = load_model_pipeline_config()
+    backtest_config = load_backtest_pipeline_config()
+    summary = build_model_evaluation_summary(
+        project_config=project_config,
+        model_config=model_config,
+        backtest_config=backtest_config,
+        model_metadata=_model_metadata_fixture(),
+        model_backtest_summary=_model_backtest_summary_fixture(),
+        portfolio_returns=_portfolio_returns_fixture(),
+        performance_by_period=_performance_by_period_fixture(),
+        risk_metrics_summary=_risk_metrics_summary_fixture(),
+    )
+
+    report = render_model_strategy_report(
+        summary,
+        strategy_report_path="outputs/reports/model_strategy_report.md",
+        registry_path="outputs/reports/experiment_registry.jsonl",
+    )
+
+    assert "# Model Strategy Report" in report
+    assert "## Model Diagnostics" in report
+    assert "## Portfolio Summary" in report
+    assert "## Benchmark Comparison" in report
+
+
 def test_build_experiment_record_and_append_jsonl() -> None:
     """Experiment registry records should append as valid JSONL rows."""
     project_config = load_project_config()
@@ -215,4 +311,46 @@ def test_build_experiment_record_and_append_jsonl() -> None:
     assert stored[0]["stage"] == "evaluation_report"
     assert stored[0]["status"] == "exploratory_completed"
     assert "portfolio_net_cumulative_return" in stored[0]["result_summary"]
+    registry_path.unlink()
+
+
+def test_build_model_experiment_record_and_append_jsonl() -> None:
+    """Model evaluation registry records should append as valid JSONL rows."""
+    project_config = load_project_config()
+    model_config = load_model_pipeline_config()
+    backtest_config = load_backtest_pipeline_config()
+    summary = build_model_evaluation_summary(
+        project_config=project_config,
+        model_config=model_config,
+        backtest_config=backtest_config,
+        model_metadata=_model_metadata_fixture(),
+        model_backtest_summary=_model_backtest_summary_fixture(),
+        portfolio_returns=_portfolio_returns_fixture(),
+        performance_by_period=_performance_by_period_fixture(),
+        risk_metrics_summary=_risk_metrics_summary_fixture(),
+    )
+
+    record = build_model_experiment_record(
+        summary,
+        artifacts_written=[
+            "outputs/reports/model_strategy_report.md",
+            "outputs/reports/experiment_registry.jsonl",
+        ],
+    )
+    registry_path = (
+        Path("C:\\Users\\golde\\OneDrive - University of Virginia\\MarketResearch_ML")
+        / ".tmp"
+        / f"test_model_experiment_registry_{uuid4().hex}.jsonl"
+    )
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    if registry_path.exists():
+        registry_path.unlink()
+    append_experiment_record(record, registry_path)
+
+    stored = [json.loads(line) for line in registry_path.read_text(encoding="utf-8").splitlines()]
+
+    assert len(stored) == 1
+    assert stored[0]["stage"] == "model_evaluation_report"
+    assert stored[0]["status"] == "exploratory_completed"
+    assert "out_of_sample_evaluation" in stored[0]["result_summary"]
     registry_path.unlink()

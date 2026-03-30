@@ -13,7 +13,7 @@ from src.models.qc import (
     build_qc_summary,
     validate_feature_columns,
     validate_input_keys,
-    validate_split_dataset,
+    validate_modeling_dataset,
     validate_split_windows,
 )
 
@@ -26,20 +26,6 @@ class ModelingDatasetBundle:
     label_metadata: dict[str, Any]
     dropped_rows_summary: dict[str, int]
     qc_summary: dict[str, Any]
-
-
-def _assign_split(date: pd.Timestamp, config: ModelPipelineConfig) -> str | None:
-    """Map one decision date into the configured chronological split."""
-    if pd.Timestamp(config.splits.train.start_date) <= date <= pd.Timestamp(config.splits.train.end_date):
-        return "train"
-    if pd.Timestamp(config.splits.validation.start_date) <= date <= pd.Timestamp(
-        config.splits.validation.end_date
-    ):
-        return "validation"
-    if pd.Timestamp(config.splits.test.start_date) <= date <= pd.Timestamp(config.splits.test.end_date):
-        return "test"
-    return None
-
 
 def build_modeling_dataset(
     *,
@@ -102,7 +88,6 @@ def build_modeling_dataset(
     dataset["model_feature_non_missing_count"] = dataset.loc[
         :, list(config.dataset.feature_columns)
     ].notna().sum(axis=1)
-    dataset["split"] = dataset["date"].map(lambda value: _assign_split(pd.Timestamp(value), config))
 
     dropped_rows_summary = {
         "missing_label": int(dataset["true_label"].isna().sum()),
@@ -113,7 +98,6 @@ def build_modeling_dataset(
                 < config.dataset.minimum_non_missing_features
             ).sum()
         ),
-        "outside_configured_windows": int(dataset["split"].isna().sum()),
     }
 
     keep_mask = (
@@ -123,12 +107,11 @@ def build_modeling_dataset(
             dataset["model_feature_non_missing_count"]
             >= config.dataset.minimum_non_missing_features
         )
-        & dataset["split"].notna()
     )
     modeled = dataset.loc[keep_mask].copy().reset_index(drop=True)
     modeled["true_label"] = modeled["true_label"].astype("Int64")
 
-    validate_split_dataset(modeled)
+    validate_modeling_dataset(modeled)
     qc_summary = build_qc_summary(
         dataset=modeled,
         dropped_rows_summary=dropped_rows_summary,

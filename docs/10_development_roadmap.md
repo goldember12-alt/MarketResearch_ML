@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow, chronology-safe modeling baselines, and an initial held-out model-driven backtest are implemented. The next milestone is expanding the model path into walk-forward multi-window evaluation and model-aware reporting.
+The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and model-aware reporting are implemented. The next milestone is longer-history robustness evaluation and richer attribution.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -110,7 +110,9 @@ Delivered:
 - `src.reporting.markdown` for strategy report rendering
 - `src.reporting.registry` for experiment-registry appends
 - runnable `src.run_evaluation_report`
+- runnable `src.run_model_evaluation_report`
 - `outputs/reports/strategy_report.md`
+- `outputs/reports/model_strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 
 Remaining work inside this phase:
@@ -129,8 +131,8 @@ Delivered:
 
 - `src.models` config, label, dataset, preprocessing, evaluation, QC, and baseline-model modules
 - explicit forward-return label construction aligned to the month-end `t` to `t+1` convention
-- config-driven fixed train, validation, and test windows
-- train-only preprocessing with median imputation and scaling
+- config-driven fixed windows plus expanding walk-forward folds
+- train-only preprocessing with median imputation and scaling, refit independently per fold
 - deterministic signal comparison context inside prediction artifacts and metadata
 - runnable `src.run_modeling_baselines`
 - runnable `src.run_logistic_regression`
@@ -142,28 +144,27 @@ Delivered:
 
 Remaining work inside this phase:
 
-- walk-forward or expanding-window multi-fold validation
-- model-driven portfolio construction and backtesting
 - richer model-aware reporting beyond prediction diagnostics
+- longer-history walk-forward evaluation on richer research data
 
 ## Phase 7A: Held-Out Model-Driven Backtest
 
 Status:
 
-- implemented baseline
+- implemented with aggregated out-of-sample prediction input
 
 Delivered:
 
-- `src.models.backtest` for converting held-out model scores into backtestable rankings
+- `src.models.backtest` for converting aggregated out-of-sample model scores into backtestable rankings
 - runnable `src.run_model_backtest`
 - separate `model_*` backtest artifacts under `outputs/backtests/`
 - held-out model-backtest experiment-registry appends
 
 Remaining work inside this phase:
 
-- expand beyond the current short validation/test held-out window
 - compare multiple model runs systematically without overwriting the same canonical model artifacts
 - add model-aware reporting comparable to deterministic evaluation output
+- extend the realized out-of-sample history with richer research data
 
 ## Phase 8: Expansion And Forward Evaluation
 

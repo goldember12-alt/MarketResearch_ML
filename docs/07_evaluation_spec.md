@@ -51,6 +51,7 @@ Current deterministic backtest evaluation tables:
 Current reporting outputs:
 
 - `outputs/reports/strategy_report.md`
+- `outputs/reports/model_strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 
 Current modeling-diagnostic outputs:
@@ -68,6 +69,13 @@ Current model-driven backtest outputs:
 - `outputs/backtests/model_risk_metrics_summary.csv`
 - `outputs/backtests/model_backtest_summary.json`
 
+Current multi-window modeling metadata also records:
+
+- fold count
+- fold window boundaries
+- aggregated out-of-sample decision and realized date coverage
+- aggregated out-of-sample classification metrics
+
 ## Period And Robustness Breakdowns
 
 The current implementation provides:
@@ -75,6 +83,7 @@ The current implementation provides:
 - full-period portfolio and benchmark summary metrics
 - per-period aligned portfolio and benchmark return tables
 - a benchmark-aware exploratory strategy report
+- a model-aware exploratory strategy report for the current canonical model run
 - experiment-registry append logic for meaningful evaluation-report runs
 
 The following remain deferred:
@@ -83,14 +92,12 @@ The following remain deferred:
 - information ratio and benchmark-relative attribution tables
 - concentration-aware interpretation for the seeded tech-heavy universe
 - automated regime-aware report sections
-- model-driven portfolio evaluation under the same transaction cost controls as the deterministic baseline
-- model-aware reporting comparable to `strategy_report.md`
 
 ## Interpretation Standard
 
 - Deterministic baselines come first.
 - No model or strategy should be evaluated only in-sample.
-- Current model-stage metrics include both prediction diagnostics and a short held-out model-driven backtest, but they remain exploratory.
+- Current model-stage metrics include both multi-window prediction diagnostics and a short aggregated out-of-sample model-driven backtest, but they remain exploratory.
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.

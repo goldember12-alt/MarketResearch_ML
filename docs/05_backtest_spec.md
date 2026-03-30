@@ -12,9 +12,10 @@ The implemented deterministic backtest currently uses:
 
 These defaults come from `config/backtest.yaml` and are explicit assumptions, not validated research findings.
 
-The repo now also supports a held-out model-driven backtest that:
+The repo now also supports an aggregated out-of-sample model-driven backtest that:
 
 - reads model scores from `outputs/models/test_predictions.parquet`
+- uses only the configured out-of-sample prediction splits, currently `test`
 - ranks names cross-sectionally by `predicted_probability`
 - applies the same top-N, weighting, turnover, cost, and benchmark rules
 - writes separate `model_*` backtest artifacts so the deterministic baseline outputs remain intact
@@ -63,7 +64,7 @@ Implemented holding-period convention:
 Model-driven integration note:
 
 - when the ranking input includes an explicit realized period end such as `realized_label_date`, that value overrides next-ranking-date inference
-- this allows sparse held-out prediction months to backtest against the correct realized `t+1` month even when later decision months are not yet available
+- this allows aggregated out-of-sample prediction months to backtest against the correct realized `t+1` month even when later decision months are not yet available
 
 This convention is the repo's current leakage-safe monthly backtest baseline.
 
@@ -212,4 +213,4 @@ Current compact QC output:
 - Any filter, cap, or universe exclusion must be documented in the experiment record once experiment logging is implemented.
 - Exploratory runs must not be described as canonical benchmark results.
 - Fundamentals-derived inputs still inherit revised-history bias risk until true point-in-time data are introduced.
-- Held-out model-driven backtests remain exploratory unless they are expanded beyond the current short validation/test window and evaluated under the same reporting discipline as the deterministic baseline.
+- Aggregated out-of-sample model-driven backtests remain exploratory until they are extended over longer history and evaluated under the same reporting discipline as the deterministic baseline.

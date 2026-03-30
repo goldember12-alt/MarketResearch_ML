@@ -4,7 +4,7 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The deterministic baseline workflow is now implemented through evaluation reporting, and the modeling path now extends through a held-out model-driven backtest:
+The deterministic baseline workflow is now implemented through evaluation reporting, and the modeling path now extends through multi-window out-of-sample evaluation and an aggregated model-driven backtest:
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
@@ -12,7 +12,8 @@ The deterministic baseline workflow is now implemented through evaluation report
 - `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, and benchmark comparisons
 - `src.evaluation` builds a benchmark-aware summary from the backtest artifacts
 - `src.reporting` writes a human-readable strategy report and appends an experiment-registry record
-- `src.models` builds leakage-safe labels, chronological splits, train-only preprocessing, baseline classifiers, model metadata artifacts, held-out model score rankings, and model-driven backtest outputs
+- `src.models` builds leakage-safe labels, fixed or expanding chronological folds, fold-local train-only preprocessing, baseline classifiers, model metadata artifacts, aggregated out-of-sample model score rankings, and model-driven backtest outputs
+- `src.run_model_evaluation_report` now writes a model-aware exploratory report from the current canonical model artifacts
 
 No benchmark-quality research conclusion, live-trading claim, or out-of-sample ML claim is included.
 
@@ -87,6 +88,7 @@ Backtest artifacts:
 Reporting artifacts:
 
 - `outputs/reports/strategy_report.md`
+- `outputs/reports/model_strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 
 Modeling artifacts:
@@ -166,19 +168,28 @@ Modeling-stage rules:
 - labels are derived from future realized returns only and align month-end decision date `t` to realized label date `t+1`
 - the default initial label is `forward_excess_return_top_n_binary`
 - under that default, a row is labeled `1` when the ticker finishes inside the top `N=10` next-month benchmark-relative returns across the decision-month cross-section
-- chronological splits are explicit and config-driven: train `2024-02-29` through `2024-03-31`, validation `2024-04-30`, test `2024-05-31`
-- preprocessing is numeric-only and fit on training rows only using median imputation plus scaling
+- chronological evaluation is config-driven and now defaults to `expanding_walk_forward`
+- the current default walk-forward settings are `min_train_periods=2`, `validation_window_periods=0`, `test_window_periods=1`, and `step_periods=1`
+- on the seeded sample this produces two folds with held-out decision months `2024-04-30` and `2024-05-31`
+- preprocessing is numeric-only and fit on training rows only using median imputation plus scaling, refit separately inside each fold
 - the current main runner writes the configured selected model to the canonical model artifact paths, while model-specific CLIs overwrite those same canonical paths for their own run
 - modeling runs append a cautious exploratory record to `outputs/reports/experiment_registry.jsonl`
 
 Model-driven backtest rules:
 
-- `src.run_model_backtest` reads held-out model predictions from `outputs/models/test_predictions.parquet`
-- only the configured held-out splits are eligible for portfolio formation, currently `validation` and `test`
+- `src.run_model_backtest` reads aggregated out-of-sample model predictions from `outputs/models/test_predictions.parquet`
+- only the configured out-of-sample splits are eligible for portfolio formation, currently `test`
 - model scores are ranked cross-sectionally within each decision month using `predicted_probability`
 - the model backtest reuses the same holdings, turnover, cost, benchmark, and metric logic as the deterministic baseline
 - when explicit realized label dates are available, they override next-ranking-date inference so sparse held-out prediction months still map correctly to realized `t+1` returns
 - model-driven backtest outputs are written to separate `model_*` artifacts under `outputs/backtests/`
+
+Model-aware reporting rules:
+
+- `src.run_model_evaluation_report` reads `model_metadata.json` plus the `model_*` backtest artifacts
+- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics
+- it writes `outputs/reports/model_strategy_report.md`
+- it appends a `model_evaluation_report` record to `outputs/reports/experiment_registry.jsonl`
 
 Important caveat:
 
@@ -240,10 +251,16 @@ Run random forest explicitly:
 .\.venv\Scripts\python.exe -m src.run_random_forest
 ```
 
-Run the held-out model-driven backtest:
+Run the aggregated out-of-sample model-driven backtest:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_model_backtest
+```
+
+Run the model-aware report:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_model_evaluation_report
 ```
 
 Full deterministic baseline pipeline:
@@ -257,7 +274,7 @@ Full deterministic baseline pipeline:
 .\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
-End-to-end through the default modeling runner:
+End-to-end through the default multi-window modeling runner:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.run_data_ingestion
@@ -266,6 +283,7 @@ End-to-end through the default modeling runner:
 .\.venv\Scripts\python.exe -m src.run_signal_generation
 .\.venv\Scripts\python.exe -m src.run_modeling_baselines
 .\.venv\Scripts\python.exe -m src.run_model_backtest
+.\.venv\Scripts\python.exe -m src.run_model_evaluation_report
 ```
 
 Recommended interpreter:
@@ -295,6 +313,16 @@ Current automated status on 2026-03-29:
 
 - `.\.venv\Scripts\python.exe -m pytest -q` passed with `49 passed`
 
+Manual verification completed on 2026-03-30:
+
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines`
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest`
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report`
+
+Current automated status on 2026-03-30:
+
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `53 passed`
+
 ## Best Next Step
 
-Extend the current single-window held-out model backtest into walk-forward multi-window model evaluation and add model-aware reporting comparable to the deterministic strategy report.
+Extend the walk-forward path over longer, richer research history and add broader model robustness diagnostics and attribution.

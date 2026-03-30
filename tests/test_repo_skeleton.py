@@ -42,6 +42,7 @@ def test_cli_entrypoints_expose_main() -> None:
         "src.run_logistic_regression",
         "src.run_random_forest",
         "src.run_model_backtest",
+        "src.run_model_evaluation_report",
         "src.run_evaluation_report",
     ]
 
@@ -90,6 +91,10 @@ def test_project_config_matches_documented_defaults() -> None:
     assert (
         config.outputs.experiment_registry
         == REPO_ROOT / "outputs" / "reports" / "experiment_registry.jsonl"
+    )
+    assert (
+        config.outputs.model_strategy_report
+        == REPO_ROOT / "outputs" / "reports" / "model_strategy_report.md"
     )
 
 
@@ -205,6 +210,7 @@ def test_modeling_cli_entrypoints_return_success(capsys) -> None:
     logistic_regression = import_module("src.run_logistic_regression")
     random_forest = import_module("src.run_random_forest")
     model_backtest = import_module("src.run_model_backtest")
+    model_evaluation_report = import_module("src.run_model_evaluation_report")
 
     assert ingestion.main() == 0
     capsys.readouterr()
@@ -230,3 +236,7 @@ def test_modeling_cli_entrypoints_return_success(capsys) -> None:
     assert model_backtest.main() == 0
     captured = capsys.readouterr()
     assert "Model backtest completed." in captured.out
+
+    assert model_evaluation_report.main() == 0
+    captured = capsys.readouterr()
+    assert "Model evaluation reporting completed." in captured.out

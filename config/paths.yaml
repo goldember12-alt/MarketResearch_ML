@@ -36,6 +36,7 @@ artifacts:
   feature_importance: "outputs/models/feature_importance.csv"
   model_signal_rankings: "outputs/models/model_signal_rankings.parquet"
   strategy_report: "outputs/reports/strategy_report.md"
+  model_strategy_report: "outputs/reports/model_strategy_report.md"
   experiment_registry: "outputs/reports/experiment_registry.jsonl"
   performance_by_period: "outputs/backtests/performance_by_period.csv"
   risk_metrics_summary: "outputs/backtests/risk_metrics_summary.csv"
