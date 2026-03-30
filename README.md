@@ -4,7 +4,7 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The deterministic baseline workflow is now implemented through evaluation reporting:
+The deterministic baseline workflow is now implemented through evaluation reporting, and the initial modeling-baselines stage is now implemented:
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
@@ -12,6 +12,7 @@ The deterministic baseline workflow is now implemented through evaluation report
 - `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, and benchmark comparisons
 - `src.evaluation` builds a benchmark-aware summary from the backtest artifacts
 - `src.reporting` writes a human-readable strategy report and appends an experiment-registry record
+- `src.models` builds leakage-safe labels, chronological splits, train-only preprocessing, baseline classifiers, and model metadata artifacts
 
 No benchmark-quality research conclusion, live-trading claim, or out-of-sample ML claim is included.
 
@@ -88,6 +89,13 @@ Reporting artifacts:
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 
+Modeling artifacts:
+
+- `outputs/models/train_predictions.parquet`
+- `outputs/models/test_predictions.parquet`
+- `outputs/models/model_metadata.json`
+- `outputs/models/feature_importance.csv`
+
 ## Config Foundation
 
 Implemented stage config files:
@@ -99,9 +107,6 @@ Implemented stage config files:
 - `config/backtest.yaml`
 - `config/paths.yaml`
 - `config/logging.yaml`
-
-Later-stage config remains scaffolded:
-
 - `config/model.yaml`
 
 ## Logic Summary
@@ -145,6 +150,16 @@ Evaluation and reporting rules:
 - bias caveats are written directly into the strategy report
 - meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
 
+Modeling-stage rules:
+
+- labels are derived from future realized returns only and align month-end decision date `t` to realized label date `t+1`
+- the default initial label is `forward_excess_return_top_n_binary`
+- under that default, a row is labeled `1` when the ticker finishes inside the top `N=10` next-month benchmark-relative returns across the decision-month cross-section
+- chronological splits are explicit and config-driven: train `2024-02-29` through `2024-03-31`, validation `2024-04-30`, test `2024-05-31`
+- preprocessing is numeric-only and fit on training rows only using median imputation plus scaling
+- the current main runner writes the configured selected model to the canonical model artifact paths, while model-specific CLIs overwrite those same canonical paths for their own run
+- modeling runs append a cautious exploratory record to `outputs/reports/experiment_registry.jsonl`
+
 Important caveat:
 
 - Point-in-time-safe fundamentals are still not solved. Lagged fundamentals and fundamentals-derived signals therefore still carry revised-history bias risk.
@@ -187,6 +202,24 @@ Run evaluation reporting:
 .\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
+Run the configured modeling baseline:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_modeling_baselines
+```
+
+Run logistic regression explicitly:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_logistic_regression
+```
+
+Run random forest explicitly:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_random_forest
+```
+
 Full deterministic baseline pipeline:
 
 ```powershell
@@ -198,12 +231,14 @@ Full deterministic baseline pipeline:
 .\.venv\Scripts\python.exe -m src.run_evaluation_report
 ```
 
-Other stage entrypoints remain scaffold-only:
+End-to-end through the default modeling runner:
 
 ```powershell
+.\.venv\Scripts\python.exe -m src.run_data_ingestion
+.\.venv\Scripts\python.exe -m src.run_panel_assembly
+.\.venv\Scripts\python.exe -m src.run_feature_generation
+.\.venv\Scripts\python.exe -m src.run_signal_generation
 .\.venv\Scripts\python.exe -m src.run_modeling_baselines
-.\.venv\Scripts\python.exe -m src.run_logistic_regression
-.\.venv\Scripts\python.exe -m src.run_random_forest
 ```
 
 Recommended interpreter:
@@ -224,10 +259,14 @@ Manual verification completed on 2026-03-28:
 - `.\.venv\Scripts\python.exe -m src.run_backtest`
 - `.\.venv\Scripts\python.exe -m src.run_evaluation_report`
 
-Current automated status on 2026-03-28:
+Manual verification completed on 2026-03-29:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `38 passed`
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines`
+
+Current automated status on 2026-03-29:
+
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `46 passed`
 
 ## Best Next Step
 
-Implement chronology-safe modeling baselines and compare them against the deterministic signal benchmark using the now-implemented reporting and experiment-tracking workflow.
+Route model scores into model-driven portfolio construction and backtesting under the same benchmark, turnover, and reporting controls already used for the deterministic baseline.

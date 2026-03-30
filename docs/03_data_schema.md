@@ -400,6 +400,84 @@ One JSON object per line with at minimum:
 - `status`
 - `next_step`
 
+Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`.
+
+### `outputs/models/train_predictions.parquet`
+
+Primary key:
+
+- `ticker`, `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `ticker` | string | analytic unit key |
+| `date` | timestamp | decision month-end `t` used for prediction |
+| `realized_label_date` | timestamp | future realized label month-end `t+1` under the current default label |
+| `benchmark_ticker` | string | benchmark identifier used for the benchmark-relative label |
+| `sector` | string | metadata only |
+| `industry` | string | metadata only |
+| `true_label` | int | realized binary label |
+| `forward_raw_return` | float | realized next-period raw return used in label construction |
+| `forward_benchmark_return` | float | realized next-period benchmark return used in label construction |
+| `forward_excess_return` | float | realized next-period raw return minus benchmark return |
+| `split` | string | currently `train` only in this artifact |
+| `model_feature_non_missing_count` | int | count of configured model features available before preprocessing |
+| `model_type` | string | current fitted model identifier |
+| `predicted_probability` | float | model-estimated probability for class `1` |
+| `predicted_class` | int | thresholded class prediction |
+| `deterministic_composite_score` | float | aligned deterministic signal score when available |
+| `deterministic_selected_top_n` | bool | aligned deterministic top-N class proxy when available |
+| `deterministic_score_rank` | float | aligned deterministic within-month rank when available |
+| `deterministic_score_rank_pct` | float | aligned deterministic rank percentile when available |
+
+### `outputs/models/test_predictions.parquet`
+
+Primary key:
+
+- `ticker`, `date`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| all columns from `train_predictions.parquet` | mixed | same schema for held-out scoring |
+| `split` | string | currently `validation` or `test` |
+
+### `outputs/models/feature_importance.csv`
+
+Primary key:
+
+- `feature`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `feature` | string | configured model feature name |
+| `importance` | float | absolute coefficient magnitude or impurity importance |
+| `signed_importance` | float | signed coefficient for logistic regression, same as `importance` for random forest |
+| `importance_type` | string | `standardized_logistic_coefficient` or `impurity_importance` |
+| `model_type` | string | fitted model identifier that produced the export |
+
+### `outputs/models/model_metadata.json`
+
+Structure:
+
+- run timestamp and stage status
+- label definition and label settings
+- configured chronological split windows
+- configured feature list and minimum non-missing rule
+- preprocessing fit settings and fit window
+- model type and core hyperparameters
+- row counts by split
+- dropped-row summary
+- split-level model metrics
+- deterministic baseline comparison context
+- compact QC summary
+- artifact paths, caveats, and next recommended implementation step
+
 ## QC Artifacts
 
 ### Data-Stage QC
@@ -437,6 +515,15 @@ The evaluation-report stage currently writes:
 
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
+
+### Modeling-Stage QC
+
+Model QC currently lives inside `outputs/models/model_metadata.json` and includes:
+
+- row counts by split
+- decision and realized date ranges by split
+- dropped-row counts for missing labels, insufficient features, and out-of-window rows
+- whether deterministic baseline context was available
 
 ## Change Control
 

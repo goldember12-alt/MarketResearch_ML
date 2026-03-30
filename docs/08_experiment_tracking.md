@@ -2,11 +2,11 @@
 
 ## Canonical Registry
 
-Meaningful evaluation-report runs append one record per run to:
+Meaningful evaluation-report and modeling-baseline runs append one record per run to:
 
 - `outputs/reports/experiment_registry.jsonl`
 
-The implemented writer appends a new JSON object line for every successful `src.run_evaluation_report` execution.
+The implemented writers append a new JSON object line for every successful `src.run_evaluation_report` and `src.run_modeling_baselines` execution. Model-specific CLI runs also append records because they overwrite the same canonical model artifacts.
 
 ## Minimum Record Fields
 
@@ -35,6 +35,9 @@ The implemented writer appends a new JSON object line for every successful `src.
 - records the deterministic signal baseline and configured feature set
 - records benchmark-aware result summaries drawn from the implemented backtest artifacts
 - stores exploratory interpretations and next-step guidance alongside each run
+- modeling-stage records mark the stage as `modeling_baselines`
+- modeling-stage records store the label definition, split window, selected model, and held-out classification diagnostics
+- modeling-stage records do not imply a model-driven backtest has been completed
 
 ## Tracking Rules
 

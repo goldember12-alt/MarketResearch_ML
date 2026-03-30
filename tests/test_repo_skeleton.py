@@ -41,6 +41,7 @@ def test_cli_entrypoints_expose_main() -> None:
         "src.run_modeling_baselines",
         "src.run_logistic_regression",
         "src.run_random_forest",
+        "src.run_model_backtest",
         "src.run_evaluation_report",
     ]
 
@@ -194,17 +195,38 @@ def test_evaluation_report_cli_entrypoint_returns_success(capsys) -> None:
     assert "Evaluation reporting completed." in captured.out
 
 
-def test_remaining_stage_cli_scaffolds_return_success(capsys) -> None:
-    """Ensure the still-scaffolded downstream CLIs run and describe their stage."""
-    cli_expectations = {
-        "src.run_modeling_baselines": "Stage: modeling_baselines",
-        "src.run_logistic_regression": "Stage: logistic_regression",
-        "src.run_random_forest": "Stage: random_forest",
-    }
+def test_modeling_cli_entrypoints_return_success(capsys) -> None:
+    """Ensure the implemented modeling CLIs run end to end."""
+    ingestion = import_module("src.run_data_ingestion")
+    panel = import_module("src.run_panel_assembly")
+    feature_generation = import_module("src.run_feature_generation")
+    signal_generation = import_module("src.run_signal_generation")
+    modeling = import_module("src.run_modeling_baselines")
+    logistic_regression = import_module("src.run_logistic_regression")
+    random_forest = import_module("src.run_random_forest")
+    model_backtest = import_module("src.run_model_backtest")
 
-    for module_name, expected_text in cli_expectations.items():
-        module = import_module(module_name)
-        assert module.main() == 0
-        captured = capsys.readouterr()
-        assert expected_text in captured.out
-        assert "Status: scaffold_only" in captured.out
+    assert ingestion.main() == 0
+    capsys.readouterr()
+    assert panel.main() == 0
+    capsys.readouterr()
+    assert feature_generation.main() == 0
+    capsys.readouterr()
+    assert signal_generation.main() == 0
+    capsys.readouterr()
+
+    assert modeling.main() == 0
+    captured = capsys.readouterr()
+    assert "Modeling baselines completed." in captured.out
+
+    assert logistic_regression.main() == 0
+    captured = capsys.readouterr()
+    assert "Modeling baselines completed." in captured.out
+
+    assert random_forest.main() == 0
+    captured = capsys.readouterr()
+    assert "Modeling baselines completed." in captured.out
+
+    assert model_backtest.main() == 0
+    captured = capsys.readouterr()
+    assert "Model backtest completed." in captured.out

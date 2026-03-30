@@ -53,6 +53,13 @@ Current reporting outputs:
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/experiment_registry.jsonl`
 
+Current modeling-diagnostic outputs:
+
+- `outputs/models/train_predictions.parquet`
+- `outputs/models/test_predictions.parquet`
+- `outputs/models/model_metadata.json`
+- `outputs/models/feature_importance.csv`
+
 ## Period And Robustness Breakdowns
 
 The current implementation provides:
@@ -68,11 +75,13 @@ The following remain deferred:
 - information ratio and benchmark-relative attribution tables
 - concentration-aware interpretation for the seeded tech-heavy universe
 - automated regime-aware report sections
+- model-driven portfolio evaluation under the same transaction cost controls as the deterministic baseline
 
 ## Interpretation Standard
 
 - Deterministic baselines come first.
 - No model or strategy should be evaluated only in-sample.
+- Current model-stage metrics are prediction diagnostics, not model-driven portfolio performance results.
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.

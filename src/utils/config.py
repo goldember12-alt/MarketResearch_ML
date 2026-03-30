@@ -105,10 +105,18 @@ class OutputPathsConfig:
     test_predictions: Path
     model_metadata: Path
     feature_importance: Path
+    model_signal_rankings: Path
     strategy_report: Path
     experiment_registry: Path
     performance_by_period: Path
     risk_metrics_summary: Path
+    model_holdings_history: Path
+    model_trade_log: Path
+    model_portfolio_returns: Path
+    model_benchmark_returns: Path
+    model_backtest_summary: Path
+    model_performance_by_period: Path
+    model_risk_metrics_summary: Path
 
     @property
     def stage_directories(self) -> tuple[Path, ...]:
@@ -229,10 +237,18 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
         test_predictions=artifact_paths["test_predictions"],
         model_metadata=artifact_paths["model_metadata"],
         feature_importance=artifact_paths["feature_importance"],
+        model_signal_rankings=artifact_paths["model_signal_rankings"],
         strategy_report=artifact_paths["strategy_report"],
         experiment_registry=artifact_paths["experiment_registry"],
         performance_by_period=artifact_paths["performance_by_period"],
         risk_metrics_summary=artifact_paths["risk_metrics_summary"],
+        model_holdings_history=artifact_paths["model_holdings_history"],
+        model_trade_log=artifact_paths["model_trade_log"],
+        model_portfolio_returns=artifact_paths["model_portfolio_returns"],
+        model_benchmark_returns=artifact_paths["model_benchmark_returns"],
+        model_backtest_summary=artifact_paths["model_backtest_summary"],
+        model_performance_by_period=artifact_paths["model_performance_by_period"],
+        model_risk_metrics_summary=artifact_paths["model_risk_metrics_summary"],
     )
 
     return ProjectConfig(

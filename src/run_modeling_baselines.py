@@ -1,28 +1,11 @@
-"""CLI entrypoint for baseline modeling experiments."""
+"""CLI entrypoint for the configured modeling-baselines stage."""
 
-from src.utils import StageDefinition, run_stage_cli
-
-
-STAGE = StageDefinition(
-    name="modeling_baselines",
-    purpose="Run leakage-safe deterministic and simple ML baseline experiments after the deterministic backtest workflow is in place.",
-    next_step="Implement label construction and walk-forward dataset preparation in src.models before fitting baseline models.",
-    expected_inputs=(
-        "outputs/features/feature_panel.parquet",
-        "outputs/data/monthly_panel.parquet",
-        "config/model.yaml",
-    ),
-    expected_outputs=(
-        "outputs/models/train_predictions.parquet",
-        "outputs/models/test_predictions.parquet",
-        "outputs/models/model_metadata.json",
-    ),
-)
+from src.models.pipeline import run_modeling_stage
 
 
 def main() -> int:
-    """Run the scaffolded modeling-baselines stage."""
-    return run_stage_cli(STAGE)
+    """Run the configured leakage-safe modeling baseline stage."""
+    return run_modeling_stage()
 
 
 if __name__ == "__main__":

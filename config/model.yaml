@@ -1,20 +1,79 @@
-# Modeling configuration
 label:
-  target_type: "forward_excess_return_binary"
-  horizon_months: 3
+  target_type: "forward_excess_return_top_n_binary"
+  horizon_months: 1
   benchmark: "SPY"
+  positive_threshold: 0.0
+  cross_sectional_top_n: 10
 
-validation:
-  scheme: "walk_forward"
-  min_train_periods: 36
-  test_periods: 12
+dataset:
+  feature_columns:
+    - "ret_1m_lag1"
+    - "mom_3m"
+    - "mom_6m"
+    - "mom_12m"
+    - "drawdown_12m"
+    - "vol_12m"
+    - "beta_12m_spy"
+    - "market_cap_lag1"
+    - "pe_ratio_lag1"
+    - "price_to_sales_lag1"
+    - "price_to_book_lag1"
+    - "ev_to_ebitda_lag1"
+    - "gross_margin_lag1"
+    - "operating_margin_lag1"
+    - "roe_lag1"
+    - "roa_lag1"
+    - "revenue_growth_lag1"
+    - "eps_growth_lag1"
+    - "debt_to_equity_lag1"
+    - "current_ratio_lag1"
+  minimum_non_missing_features: 5
+
+splits:
+  scheme: "fixed_date_windows"
+  train:
+    start_date: "2024-02-29"
+    end_date: "2024-03-31"
+  validation:
+    start_date: "2024-04-30"
+    end_date: "2024-04-30"
+  test:
+    start_date: "2024-05-31"
+    end_date: "2024-05-31"
+
+preprocessing:
+  numeric_imputation_strategy: "median"
+  scale_numeric: true
+
+classification:
+  class_threshold: 0.5
+
+execution:
+  selected_model: "logistic_regression"
+  random_state: 42
+  append_experiment_registry: true
+
+deterministic_baseline:
+  enabled: true
+  score_column: "composite_score"
+  class_column: "selected_top_n"
+
+backtest:
+  score_column: "predicted_probability"
+  prediction_splits:
+    - "validation"
+    - "test"
 
 models:
-  deterministic_score:
-    enabled: true
   logistic_regression:
     enabled: true
+    penalty: "l2"
+    c: 1.0
+    solver: "lbfgs"
+    max_iter: 1000
   random_forest:
     enabled: true
-  gradient_boosting:
-    enabled: false
+    n_estimators: 200
+    max_depth: 5
+    min_samples_leaf: 2
+    max_features: "sqrt"

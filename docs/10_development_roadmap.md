@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow is implemented end to end through evaluation reporting. The next milestone is chronology-safe modeling baselines on top of the documented deterministic benchmark.
+The deterministic baseline workflow and the initial chronology-safe modeling baselines are implemented. The next milestone is routing model scores into model-driven portfolio construction and backtesting under the same benchmark and cost controls.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -121,12 +121,30 @@ Remaining work inside this phase:
 
 ## Phase 7: Modeling Baselines
 
-Next deliverables:
+Status:
 
-- label construction
-- walk-forward validation datasets
-- logistic regression baseline
-- random forest baseline
+- implemented baseline
+
+Delivered:
+
+- `src.models` config, label, dataset, preprocessing, evaluation, QC, and baseline-model modules
+- explicit forward-return label construction aligned to the month-end `t` to `t+1` convention
+- config-driven fixed train, validation, and test windows
+- train-only preprocessing with median imputation and scaling
+- deterministic signal comparison context inside prediction artifacts and metadata
+- runnable `src.run_modeling_baselines`
+- runnable `src.run_logistic_regression`
+- runnable `src.run_random_forest`
+- `outputs/models/train_predictions.parquet`
+- `outputs/models/test_predictions.parquet`
+- `outputs/models/model_metadata.json`
+- `outputs/models/feature_importance.csv`
+
+Remaining work inside this phase:
+
+- walk-forward or expanding-window multi-fold validation
+- model-driven portfolio construction and backtesting
+- richer model-aware reporting beyond prediction diagnostics
 
 ## Phase 8: Expansion And Forward Evaluation
 

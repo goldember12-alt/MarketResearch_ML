@@ -1,24 +1,11 @@
-"""CLI entrypoint for logistic-regression experiments."""
+"""CLI entrypoint for the logistic-regression baseline."""
 
-from src.utils import StageDefinition, run_stage_cli
-
-
-STAGE = StageDefinition(
-    name="logistic_regression",
-    purpose="Fit the initial regularized classification baseline using chronology-safe training and validation splits.",
-    next_step="Implement train-only preprocessing and walk-forward logistic regression evaluation in src.models.",
-    expected_inputs=("outputs/features/feature_panel.parquet", "config/model.yaml"),
-    expected_outputs=(
-        "outputs/models/train_predictions.parquet",
-        "outputs/models/test_predictions.parquet",
-        "outputs/models/model_metadata.json",
-    ),
-)
+from src.models.pipeline import run_modeling_stage
 
 
 def main() -> int:
-    """Run the scaffolded logistic-regression stage."""
-    return run_stage_cli(STAGE)
+    """Run the leakage-safe logistic-regression baseline."""
+    return run_modeling_stage("logistic_regression")
 
 
 if __name__ == "__main__":

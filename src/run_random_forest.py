@@ -1,24 +1,11 @@
-"""CLI entrypoint for random-forest experiments."""
+"""CLI entrypoint for the random-forest baseline."""
 
-from src.utils import StageDefinition, run_stage_cli
-
-
-STAGE = StageDefinition(
-    name="random_forest",
-    purpose="Fit the initial tree-based baseline only after deterministic and linear-model baselines are available for comparison.",
-    next_step="Implement chronology-safe random forest training, feature importance export, and benchmarked evaluation in src.models.",
-    expected_inputs=("outputs/features/feature_panel.parquet", "config/model.yaml"),
-    expected_outputs=(
-        "outputs/models/test_predictions.parquet",
-        "outputs/models/model_metadata.json",
-        "outputs/models/feature_importance.csv",
-    ),
-)
+from src.models.pipeline import run_modeling_stage
 
 
 def main() -> int:
-    """Run the scaffolded random-forest stage."""
-    return run_stage_cli(STAGE)
+    """Run the leakage-safe random-forest baseline."""
+    return run_modeling_stage("random_forest")
 
 
 if __name__ == "__main__":
