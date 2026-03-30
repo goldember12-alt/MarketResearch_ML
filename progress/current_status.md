@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting are implemented for the local-file-first workflow
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with exploratory subperiod diagnostics are implemented for the local-file-first workflow
 
 ## What Is Completed
 
@@ -28,8 +28,10 @@
   - markdown strategy-report rendering
   - markdown model-strategy-report rendering
   - machine-readable model comparison summary generation
+  - machine-readable model subperiod comparison generation
   - overlap-aware deterministic-vs-model comparison reporting on shared realized dates only
   - held-out fold coverage diagnostics in model-aware reporting
+  - overlap-window regime and subperiod diagnostics by fold, calendar bucket, and benchmark direction
   - experiment-registry record creation
   - JSONL append logic for meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs
 - `src.models` includes:
@@ -48,6 +50,7 @@
 - `src.run_model_evaluation_report.py` reads the current canonical model metadata plus model-driven backtest outputs and writes:
   - `outputs/reports/model_strategy_report.md`
   - `outputs/reports/model_comparison_summary.json`
+  - `outputs/reports/model_subperiod_comparison.csv`
   - `outputs/reports/experiment_registry.jsonl`
 - `src.run_modeling_baselines.py` reads the feature panel, monthly panel, and deterministic signal context and writes:
   - `outputs/models/train_predictions.parquet`
@@ -83,6 +86,7 @@
   - overlap-aware deterministic-vs-model comparison logic
   - held-out fold coverage diagnostics
   - comparison-convention metadata
+  - overlap-window subperiod and regime diagnostics
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
   - `src.run_evaluation_report`
@@ -114,16 +118,17 @@
   - `model_backtest_summary.json`: model type, split scheme, fold count, prediction splits used, shared backtest metrics, and caveats present
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
 - Resulting model-aware reporting artifacts were manually checked:
-  - `model_strategy_report.md`: model diagnostics, fold coverage, overlap-aware deterministic comparison, benchmark comparison, risk controls, caveats, interpretation, and next step present
-  - `model_comparison_summary.json`: comparison convention, fold diagnostics, and overlap-only deterministic-vs-model metrics present
-  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison content in `result_summary`
+  - `model_strategy_report.md`: model diagnostics, fold coverage, overlap-aware deterministic comparison, regime/subperiod diagnostics, benchmark comparison, risk controls, caveats, interpretation, and next step present
+  - `model_comparison_summary.json`: comparison convention, fold diagnostics, overlap-only deterministic-vs-model metrics, and subperiod diagnostics metadata present
+  - `model_subperiod_comparison.csv`: overlap segments present for fold, calendar, and benchmark-direction breakdowns
+  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison and subperiod content in `result_summary`
 - `.\.venv\Scripts\python.exe -m src.run_logistic_regression` was rerun successfully on 2026-03-30 after the automated suite to restore the canonical selected-model artifacts to the default `logistic_regression` state before rerunning `src.run_model_backtest` and `src.run_model_evaluation_report`.
 - Previous manual verification for `src.run_backtest` remains valid:
   - the backtest outputs used by reporting and modeling comparison context were present and aligned before the modeling run
 
 ## Immediate Next Step
 
-- Extend the overlap-aware evaluation layer over longer research history and add regime-aware robustness diagnostics and attribution for model-driven runs.
+- Extend the realized overlap history so the new regime and subperiod diagnostics can be evaluated over materially longer windows and support stronger attribution for model-driven runs.
 
 ## Known Risks / Open Issues
 
@@ -134,7 +139,7 @@
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
 - The current model-driven backtest now uses aggregated out-of-sample windows, but realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.
-- Reporting is now implemented, but richer regime diagnostics, longer-history overlap evaluation, and attribution are still deferred.
+- Regime and subperiod diagnostics are now implemented, but longer-history overlap evaluation and richer attribution are still deferred.
 
 ## Current Output Structure
 
@@ -171,6 +176,7 @@
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
 - `outputs/reports/model_comparison_summary.json`
+- `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
 - `outputs/models/train_predictions.parquet`
 - `outputs/models/test_predictions.parquet`

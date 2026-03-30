@@ -83,6 +83,36 @@ def _render_overlap_comparison(
     return lines
 
 
+def _render_subperiod_diagnostics(subperiod_diagnostics: dict[str, Any]) -> list[str]:
+    """Render the subperiod and regime diagnostics block."""
+    if not subperiod_diagnostics.get("available"):
+        return [
+            "## Regime And Subperiod Diagnostics",
+            "- No overlapping realized dates were available for subperiod or regime diagnostics.",
+        ]
+
+    lines = [
+        "## Regime And Subperiod Diagnostics",
+        f"- Primary regime benchmark: `{subperiod_diagnostics['primary_benchmark']}`",
+        f"- Segment types evaluated: `{', '.join(subperiod_diagnostics['segment_types_evaluated'])}`",
+        f"- Distinct benchmark-direction regimes in overlap: `{', '.join(subperiod_diagnostics['distinct_benchmark_regimes']) if subperiod_diagnostics['distinct_benchmark_regimes'] else 'none'}`",
+        f"- Regime comparison note: {subperiod_diagnostics['regime_comparison_note']}",
+    ]
+    for segment in subperiod_diagnostics.get("segments", []):
+        lines.append(
+            "- "
+            + (
+                f"`{segment['segment_type']}` / `{segment['segment_id']}`: "
+                f"{segment['period_count']} months, "
+                f"gap `{_pct(segment['cumulative_return_gap'])}`, "
+                f"winning-month share `{_pct(segment['winning_month_share'])}`, "
+                f"benchmark cumulative `{_pct(segment['primary_benchmark_cumulative_return'])}`, "
+                f"note `{segment['note']}`"
+            )
+        )
+    return lines
+
+
 def render_strategy_report(
     summary: dict[str, Any],
     *,
@@ -171,6 +201,7 @@ def render_model_strategy_report(
     fold_diagnostics = summary["fold_diagnostics"]
     overlap_comparison = summary["deterministic_baseline_overlap_comparison"]
     comparison_convention = summary["comparison_convention"]
+    subperiod_diagnostics = summary["subperiod_diagnostics"]
     lines = [
         "# Model Strategy Report",
         "",
@@ -217,6 +248,8 @@ def render_model_strategy_report(
         ]
     )
     lines.extend(_render_overlap_comparison(overlap_comparison, comparison_convention))
+    lines.extend([""])
+    lines.extend(_render_subperiod_diagnostics(subperiod_diagnostics))
     lines.extend(["", "## Benchmark Comparison"])
 
     for comparison in summary["benchmark_comparison"]:

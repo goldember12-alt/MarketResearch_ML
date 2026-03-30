@@ -11,6 +11,7 @@ from src.backtest.config import BacktestPipelineConfig
 from src.evaluation.comparison import (
     build_fold_diagnostics,
     build_model_comparison_convention,
+    build_overlap_subperiod_diagnostics,
     build_model_vs_deterministic_overlap_summary,
 )
 from src.models.config import ModelPipelineConfig
@@ -250,6 +251,12 @@ def build_model_evaluation_summary(
         deterministic_performance_by_period=deterministic_performance_by_period,
         model_performance_by_period=performance_by_period,
     )
+    subperiod_diagnostics = build_overlap_subperiod_diagnostics(
+        deterministic_performance_by_period=deterministic_performance_by_period,
+        model_performance_by_period=performance_by_period,
+        test_predictions=test_predictions,
+        primary_benchmark=model_config.label.benchmark,
+    )
 
     realized_period_count = int(len(portfolio_returns))
     positive_periods = (
@@ -365,9 +372,10 @@ def build_model_evaluation_summary(
         "comparison_convention": comparison_convention,
         "fold_diagnostics": fold_diagnostics,
         "deterministic_baseline_overlap_comparison": deterministic_baseline_overlap_comparison,
+        "subperiod_diagnostics": subperiod_diagnostics,
         "risk_controls": _model_risk_controls(),
         "bias_caveats": _model_bias_caveats(),
         "qc_summary": model_backtest_summary.get("qc", {}),
         "interpretation": interpretation,
-        "next_step": "Extend the overlap-aware model evaluation layer across longer research history and add regime-aware robustness diagnostics once broader realized coverage is available.",
+        "next_step": "Extend realized history so the new subperiod and regime diagnostics can be evaluated over materially longer overlap windows.",
     }

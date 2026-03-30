@@ -8,7 +8,7 @@ import logging
 import pandas as pd
 
 from src.backtest.config import configure_backtest_logging, load_backtest_pipeline_config
-from src.data.io import read_parquet_required, write_json
+from src.data.io import read_parquet_required, write_csv, write_json
 from src.evaluation.summary import build_model_evaluation_summary
 from src.models.config import load_model_pipeline_config
 from src.reporting.markdown import render_model_strategy_report
@@ -74,9 +74,14 @@ def main() -> int:
             "deterministic_baseline_overlap_comparison": summary[
                 "deterministic_baseline_overlap_comparison"
             ],
+            "subperiod_diagnostics": summary["subperiod_diagnostics"],
             "bias_caveats": summary["bias_caveats"],
         },
         project_config.outputs.model_comparison_summary,
+    )
+    write_csv(
+        pd.DataFrame(summary["subperiod_diagnostics"].get("segments", [])),
+        project_config.outputs.model_subperiod_comparison,
     )
 
     record = build_model_experiment_record(
@@ -84,6 +89,7 @@ def main() -> int:
         artifacts_written=[
             str(project_config.outputs.model_strategy_report),
             str(project_config.outputs.model_comparison_summary),
+            str(project_config.outputs.model_subperiod_comparison),
             str(project_config.outputs.experiment_registry),
         ],
     )
@@ -93,6 +99,7 @@ def main() -> int:
     print("Model evaluation reporting completed.")
     print(project_config.outputs.model_strategy_report)
     print(project_config.outputs.model_comparison_summary)
+    print(project_config.outputs.model_subperiod_comparison)
     print(project_config.outputs.experiment_registry)
     return 0
 

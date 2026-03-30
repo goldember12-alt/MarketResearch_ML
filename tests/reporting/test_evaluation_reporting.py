@@ -195,7 +195,7 @@ def _model_performance_by_period_fixture() -> pd.DataFrame:
             "portfolio_net_return": [0.02, 0.01],
             "portfolio_gross_return": [0.021, 0.011],
             "turnover": [0.4, 0.1],
-            "benchmark_return__SPY": [0.018, 0.012],
+            "benchmark_return__SPY": [0.018, -0.012],
             "benchmark_return__QQQ": [0.017, 0.011],
             "benchmark_return__equal_weight_universe": [0.02, 0.013],
         }
@@ -303,6 +303,8 @@ def test_build_model_evaluation_summary_includes_model_diagnostics() -> None:
     assert summary["model_diagnostics"]["out_of_sample_evaluation"]["accuracy"] == 0.75
     assert summary["fold_diagnostics"]["heldout_decision_month_count"] == 2
     assert summary["deterministic_baseline_overlap_comparison"]["overlap_period_count"] == 2
+    assert summary["subperiod_diagnostics"]["available"] is True
+    assert summary["subperiod_diagnostics"]["segment_counts_by_type"]["fold_id"] == 2
     assert (
         summary["deterministic_baseline_overlap_comparison"]["comparison_metrics"][
             "cumulative_return_gap"
@@ -340,6 +342,7 @@ def test_render_model_strategy_report_outputs_key_sections() -> None:
     assert "## Fold Coverage" in report
     assert "## Portfolio Summary" in report
     assert "## Deterministic Baseline Overlap Comparison" in report
+    assert "## Regime And Subperiod Diagnostics" in report
     assert "## Benchmark Comparison" in report
 
 
@@ -407,6 +410,7 @@ def test_build_model_experiment_record_and_append_jsonl() -> None:
         artifacts_written=[
             "outputs/reports/model_strategy_report.md",
             "outputs/reports/model_comparison_summary.json",
+            "outputs/reports/model_subperiod_comparison.csv",
             "outputs/reports/experiment_registry.jsonl",
         ],
     )
@@ -427,4 +431,5 @@ def test_build_model_experiment_record_and_append_jsonl() -> None:
     assert stored[0]["status"] == "exploratory_completed"
     assert "out_of_sample_evaluation" in stored[0]["result_summary"]
     assert "deterministic_baseline_overlap_comparison" in stored[0]["result_summary"]
+    assert "subperiod_diagnostics" in stored[0]["result_summary"]
     registry_path.unlink()

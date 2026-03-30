@@ -94,6 +94,7 @@ def build_model_experiment_record(
                 "deterministic_baseline_overlap_comparison": summary[
                     "deterministic_baseline_overlap_comparison"
                 ],
+                "subperiod_diagnostics": summary["subperiod_diagnostics"],
                 "benchmark_comparison": summary["benchmark_comparison"],
             },
             "interpretation": summary["interpretation"],

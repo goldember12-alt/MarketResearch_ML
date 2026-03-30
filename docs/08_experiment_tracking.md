@@ -43,6 +43,7 @@ The implemented writers append a new JSON object line for every successful `src.
 - model-aware reporting records mark the stage as `model_evaluation_report`
 - model-aware reporting records store out-of-sample model diagnostics, held-out fold coverage, the exact overlap comparison convention, and model-driven benchmark-aware backtest metrics
 - model-aware reporting records also store deterministic-vs-model overlap comparison metrics keyed only on shared realized dates
+- model-aware reporting records now also store overlap-window subperiod and regime diagnostics in `result_summary`
 
 ## Tracking Rules
 

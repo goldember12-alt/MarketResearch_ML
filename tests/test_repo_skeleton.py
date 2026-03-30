@@ -100,6 +100,10 @@ def test_project_config_matches_documented_defaults() -> None:
         config.outputs.model_comparison_summary
         == REPO_ROOT / "outputs" / "reports" / "model_comparison_summary.json"
     )
+    assert (
+        config.outputs.model_subperiod_comparison
+        == REPO_ROOT / "outputs" / "reports" / "model_subperiod_comparison.csv"
+    )
 
 
 def test_output_directories_exist_or_can_be_ensured() -> None:
@@ -245,3 +249,4 @@ def test_modeling_cli_entrypoints_return_success(capsys) -> None:
     captured = capsys.readouterr()
     assert "Model evaluation reporting completed." in captured.out
     assert (REPO_ROOT / "outputs" / "reports" / "model_comparison_summary.json").exists()
+    assert (REPO_ROOT / "outputs" / "reports" / "model_subperiod_comparison.csv").exists()

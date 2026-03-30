@@ -30,6 +30,105 @@ def _as_date_string(value: Any) -> str | None:
     return pd.Timestamp(value).strftime("%Y-%m-%d")
 
 
+def _empty_overlap_summary() -> dict[str, Any]:
+    """Return an empty overlap-comparison payload."""
+    return {
+        "available": False,
+        "overlap_period_count": 0,
+        "realized_start": None,
+        "realized_end": None,
+        "formation_start": None,
+        "formation_end": None,
+        "model_metrics_on_overlap": {},
+        "deterministic_metrics_on_overlap": {},
+        "comparison_metrics": {},
+        "periods": [],
+    }
+
+
+def _prepare_overlap_frame(
+    *,
+    deterministic_performance_by_period: pd.DataFrame,
+    model_performance_by_period: pd.DataFrame,
+    primary_benchmark: str | None = None,
+) -> pd.DataFrame:
+    """Inner-join deterministic and model performance on shared realized dates."""
+    deterministic = deterministic_performance_by_period.copy()
+    model = model_performance_by_period.copy()
+    if deterministic.empty or model.empty:
+        return pd.DataFrame()
+
+    deterministic["date"] = pd.to_datetime(deterministic["date"])
+    deterministic["formation_date"] = pd.to_datetime(deterministic["formation_date"])
+    model["date"] = pd.to_datetime(model["date"])
+    model["formation_date"] = pd.to_datetime(model["formation_date"])
+
+    benchmark_column = (
+        f"benchmark_return__{primary_benchmark}" if primary_benchmark is not None else None
+    )
+    deterministic_columns = [
+        "date",
+        "formation_date",
+        "portfolio_net_return",
+        "portfolio_gross_return",
+        "turnover",
+    ]
+    if benchmark_column is not None and benchmark_column in deterministic.columns:
+        deterministic_columns.append(benchmark_column)
+
+    model_columns = [
+        "date",
+        "formation_date",
+        "portfolio_net_return",
+        "portfolio_gross_return",
+        "turnover",
+    ]
+    if benchmark_column is not None and benchmark_column in model.columns:
+        model_columns.append(benchmark_column)
+
+    deterministic = deterministic.loc[:, deterministic_columns].rename(
+        columns={
+            "formation_date": "deterministic_formation_date",
+            "portfolio_net_return": "deterministic_portfolio_net_return",
+            "portfolio_gross_return": "deterministic_portfolio_gross_return",
+            "turnover": "deterministic_turnover",
+            benchmark_column: "deterministic_primary_benchmark_return",
+        }
+    )
+    model = model.loc[:, model_columns].rename(
+        columns={
+            "formation_date": "model_formation_date",
+            "portfolio_net_return": "model_portfolio_net_return",
+            "portfolio_gross_return": "model_portfolio_gross_return",
+            "turnover": "model_turnover",
+            benchmark_column: "model_primary_benchmark_return",
+        }
+    )
+
+    overlap = deterministic.merge(model, on="date", how="inner").sort_values("date").reset_index(
+        drop=True
+    )
+    if overlap.empty:
+        return overlap
+
+    if (
+        "deterministic_primary_benchmark_return" in overlap.columns
+        or "model_primary_benchmark_return" in overlap.columns
+    ):
+        overlap["primary_benchmark_return"] = overlap.get(
+            "deterministic_primary_benchmark_return",
+            pd.Series(index=overlap.index, dtype="float64"),
+        )
+        if "model_primary_benchmark_return" in overlap.columns:
+            overlap["primary_benchmark_return"] = overlap["primary_benchmark_return"].fillna(
+                overlap["model_primary_benchmark_return"]
+            )
+    else:
+        overlap["primary_benchmark_return"] = pd.NA
+
+    return overlap
+
+
 def build_model_comparison_convention() -> dict[str, Any]:
     """Describe the exact overlap comparison convention used in model reporting."""
     return {
@@ -138,79 +237,12 @@ def build_model_vs_deterministic_overlap_summary(
     model_performance_by_period: pd.DataFrame,
 ) -> dict[str, Any]:
     """Compare deterministic and model-driven portfolio returns on overlapping realized dates only."""
-    deterministic = deterministic_performance_by_period.copy()
-    model = model_performance_by_period.copy()
-
-    if deterministic.empty or model.empty:
-        return {
-            "available": False,
-            "overlap_period_count": 0,
-            "realized_start": None,
-            "realized_end": None,
-            "formation_start": None,
-            "formation_end": None,
-            "model_metrics_on_overlap": {},
-            "deterministic_metrics_on_overlap": {},
-            "comparison_metrics": {},
-            "periods": [],
-        }
-
-    deterministic["date"] = pd.to_datetime(deterministic["date"])
-    deterministic["formation_date"] = pd.to_datetime(deterministic["formation_date"])
-    model["date"] = pd.to_datetime(model["date"])
-    model["formation_date"] = pd.to_datetime(model["formation_date"])
-
-    deterministic = deterministic.loc[
-        :,
-        [
-            "date",
-            "formation_date",
-            "portfolio_net_return",
-            "portfolio_gross_return",
-            "turnover",
-        ],
-    ].rename(
-        columns={
-            "formation_date": "deterministic_formation_date",
-            "portfolio_net_return": "deterministic_portfolio_net_return",
-            "portfolio_gross_return": "deterministic_portfolio_gross_return",
-            "turnover": "deterministic_turnover",
-        }
-    )
-    model = model.loc[
-        :,
-        [
-            "date",
-            "formation_date",
-            "portfolio_net_return",
-            "portfolio_gross_return",
-            "turnover",
-        ],
-    ].rename(
-        columns={
-            "formation_date": "model_formation_date",
-            "portfolio_net_return": "model_portfolio_net_return",
-            "portfolio_gross_return": "model_portfolio_gross_return",
-            "turnover": "model_turnover",
-        }
-    )
-
-    overlap = deterministic.merge(model, on="date", how="inner").sort_values("date").reset_index(
-        drop=True
+    overlap = _prepare_overlap_frame(
+        deterministic_performance_by_period=deterministic_performance_by_period,
+        model_performance_by_period=model_performance_by_period,
     )
     if overlap.empty:
-        return {
-            "available": False,
-            "overlap_period_count": 0,
-            "realized_start": None,
-            "realized_end": None,
-            "formation_start": None,
-            "formation_end": None,
-            "model_metrics_on_overlap": {},
-            "deterministic_metrics_on_overlap": {},
-            "comparison_metrics": {},
-            "periods": [],
-        }
+        return _empty_overlap_summary()
 
     model_metrics = summarize_return_series(
         overlap["model_portfolio_net_return"],
@@ -301,4 +333,196 @@ def build_model_vs_deterministic_overlap_summary(
             }
             for _, row in overlap.iterrows()
         ],
+    }
+
+
+def _fold_label_by_realized_date(test_predictions: pd.DataFrame) -> pd.DataFrame:
+    """Map each realized label date to its contributing fold label."""
+    predictions = test_predictions.copy()
+    if predictions.empty:
+        return pd.DataFrame(columns=["date", "fold_id_label"])
+
+    predictions["realized_label_date"] = pd.to_datetime(predictions["realized_label_date"])
+    mapped = (
+        predictions.groupby("realized_label_date")["fold_id"]
+        .agg(lambda values: ",".join(sorted({str(value) for value in values})))
+        .reset_index()
+        .rename(
+            columns={
+                "realized_label_date": "date",
+                "fold_id": "fold_id_label",
+            }
+        )
+    )
+    return mapped
+
+
+def _benchmark_direction_label(value: Any) -> str:
+    """Bucket a monthly benchmark return into a simple market-direction regime."""
+    if pd.isna(value):
+        return "benchmark_unavailable"
+    if float(value) > 0.0:
+        return "benchmark_up"
+    if float(value) < 0.0:
+        return "benchmark_down"
+    return "benchmark_flat"
+
+
+def _summarize_overlap_segment(
+    *,
+    frame: pd.DataFrame,
+    segment_type: str,
+    segment_id: str,
+    primary_benchmark: str,
+    overlap_period_count: int,
+) -> dict[str, Any]:
+    """Summarize one overlap subperiod or regime segment."""
+    model_metrics = summarize_return_series(
+        frame["model_portfolio_net_return"],
+        turnover=frame["model_turnover"],
+    )
+    deterministic_metrics = summarize_return_series(
+        frame["deterministic_portfolio_net_return"],
+        turnover=frame["deterministic_turnover"],
+    )
+    monthly_gap = frame["model_portfolio_net_return"] - frame["deterministic_portfolio_net_return"]
+
+    model_sharpe = _as_float_or_none(model_metrics.get("sharpe_ratio"))
+    deterministic_sharpe = _as_float_or_none(deterministic_metrics.get("sharpe_ratio"))
+    relative_sharpe_ratio = None
+    if (
+        model_sharpe is not None
+        and deterministic_sharpe is not None
+        and deterministic_sharpe != 0.0
+    ):
+        relative_sharpe_ratio = model_sharpe / deterministic_sharpe
+
+    benchmark_cumulative_return = None
+    if "primary_benchmark_return" in frame.columns and frame["primary_benchmark_return"].notna().any():
+        benchmark_cumulative_return = float((1.0 + frame["primary_benchmark_return"].fillna(0.0)).prod() - 1.0)
+
+    period_count = int(len(frame))
+    sparse_segment = period_count < 3
+    note = (
+        "descriptive_only_short_segment"
+        if sparse_segment
+        else "segment_has_minimum_history_for_basic_descriptive_comparison"
+    )
+    return {
+        "segment_type": segment_type,
+        "segment_id": segment_id,
+        "period_count": period_count,
+        "realized_start": _as_date_string(frame["date"].min()),
+        "realized_end": _as_date_string(frame["date"].max()),
+        "coverage_share_of_overlap": _as_float_or_none(period_count / overlap_period_count),
+        "primary_benchmark": primary_benchmark,
+        "primary_benchmark_average_monthly_return": _as_float_or_none(
+            frame["primary_benchmark_return"].mean()
+        )
+        if "primary_benchmark_return" in frame.columns
+        else None,
+        "primary_benchmark_cumulative_return": _as_float_or_none(benchmark_cumulative_return),
+        "model_cumulative_return": _as_float_or_none(model_metrics.get("cumulative_return")),
+        "deterministic_cumulative_return": _as_float_or_none(
+            deterministic_metrics.get("cumulative_return")
+        ),
+        "cumulative_return_gap": _as_float_or_none(
+            _as_float_or_none(model_metrics.get("cumulative_return"))
+            - _as_float_or_none(deterministic_metrics.get("cumulative_return"))
+            if _as_float_or_none(model_metrics.get("cumulative_return")) is not None
+            and _as_float_or_none(deterministic_metrics.get("cumulative_return")) is not None
+            else None
+        ),
+        "average_monthly_return_gap": _as_float_or_none(monthly_gap.mean()),
+        "winning_month_share": _as_float_or_none((monthly_gap > 0.0).mean()),
+        "model_sharpe_ratio": model_sharpe,
+        "deterministic_sharpe_ratio": deterministic_sharpe,
+        "relative_sharpe_ratio": _as_float_or_none(relative_sharpe_ratio),
+        "average_turnover_gap": _as_float_or_none(
+            frame["model_turnover"].mean() - frame["deterministic_turnover"].mean()
+        ),
+        "sparse_segment": sparse_segment,
+        "note": note,
+    }
+
+
+def build_overlap_subperiod_diagnostics(
+    *,
+    deterministic_performance_by_period: pd.DataFrame,
+    model_performance_by_period: pd.DataFrame,
+    test_predictions: pd.DataFrame,
+    primary_benchmark: str = "SPY",
+) -> dict[str, Any]:
+    """Summarize overlap performance by fold, calendar bucket, and benchmark-direction regime."""
+    overlap = _prepare_overlap_frame(
+        deterministic_performance_by_period=deterministic_performance_by_period,
+        model_performance_by_period=model_performance_by_period,
+        primary_benchmark=primary_benchmark,
+    )
+    if overlap.empty:
+        return {
+            "available": False,
+            "primary_benchmark": primary_benchmark,
+            "segment_types_evaluated": [],
+            "segment_counts_by_type": {},
+            "distinct_benchmark_regimes": [],
+            "regime_comparison_supported": False,
+            "regime_comparison_note": "No overlapping realized dates were available for subperiod diagnostics.",
+            "segments": [],
+        }
+
+    overlap = overlap.merge(_fold_label_by_realized_date(test_predictions), on="date", how="left")
+    overlap["fold_id_label"] = overlap["fold_id_label"].fillna("fold_unavailable")
+    overlap["calendar_month"] = overlap["date"].dt.strftime("%Y-%m")
+    overlap["calendar_quarter"] = overlap["date"].dt.to_period("Q").astype(str)
+    overlap["benchmark_direction"] = overlap["primary_benchmark_return"].apply(
+        _benchmark_direction_label
+    )
+    overlap_period_count = len(overlap)
+
+    segment_specs = (
+        ("fold_id", "fold_id_label"),
+        ("calendar_month", "calendar_month"),
+        ("calendar_quarter", "calendar_quarter"),
+        ("benchmark_direction", "benchmark_direction"),
+    )
+    segments: list[dict[str, Any]] = []
+    segment_counts_by_type: dict[str, int] = {}
+    for segment_type, column_name in segment_specs:
+        grouped_segments = []
+        for segment_id, frame in overlap.groupby(column_name, sort=True):
+            row = _summarize_overlap_segment(
+                frame=frame.sort_values("date").reset_index(drop=True),
+                segment_type=segment_type,
+                segment_id=str(segment_id),
+                primary_benchmark=primary_benchmark,
+                overlap_period_count=overlap_period_count,
+            )
+            grouped_segments.append(row)
+        segments.extend(grouped_segments)
+        segment_counts_by_type[segment_type] = len(grouped_segments)
+
+    distinct_benchmark_regimes = sorted(
+        {
+            str(value)
+            for value in overlap["benchmark_direction"].dropna().unique().tolist()
+            if str(value) != "benchmark_unavailable"
+        }
+    )
+    regime_comparison_supported = len(distinct_benchmark_regimes) >= 2
+    regime_comparison_note = (
+        "At least two benchmark-direction regimes are present inside the overlap window."
+        if regime_comparison_supported
+        else "The current overlap window contains fewer than two benchmark-direction regimes, so regime comparison remains descriptive only."
+    )
+
+    return {
+        "available": True,
+        "primary_benchmark": primary_benchmark,
+        "segment_types_evaluated": [segment_type for segment_type, _ in segment_specs],
+        "segment_counts_by_type": segment_counts_by_type,
+        "distinct_benchmark_regimes": distinct_benchmark_regimes,
+        "regime_comparison_supported": regime_comparison_supported,
+        "regime_comparison_note": regime_comparison_note,
+        "segments": segments,
     }

@@ -3,6 +3,7 @@
 from src.evaluation.comparison import (
     build_fold_diagnostics,
     build_model_comparison_convention,
+    build_overlap_subperiod_diagnostics,
     build_model_vs_deterministic_overlap_summary,
 )
 from src.evaluation.summary import build_evaluation_summary, build_model_evaluation_summary
@@ -12,5 +13,6 @@ __all__ = [
     "build_model_evaluation_summary",
     "build_model_comparison_convention",
     "build_model_vs_deterministic_overlap_summary",
+    "build_overlap_subperiod_diagnostics",
     "build_fold_diagnostics",
 ]

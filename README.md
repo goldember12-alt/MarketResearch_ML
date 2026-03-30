@@ -90,6 +90,7 @@ Reporting artifacts:
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
 - `outputs/reports/model_comparison_summary.json`
+- `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
 
 Modeling artifacts:
@@ -162,6 +163,7 @@ Evaluation and reporting rules:
 - every generated report is explicitly marked exploratory unless stronger evidence is actually available
 - benchmark comparisons are carried through into the report and experiment registry
 - model-aware reporting now compares model-driven backtest returns against the deterministic baseline only on overlapping realized dates
+- model-aware reporting now writes regime and subperiod diagnostics from the overlap window by fold, calendar bucket, and primary-benchmark direction
 - bias caveats are written directly into the strategy report
 - meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
 
@@ -189,9 +191,10 @@ Model-driven backtest rules:
 Model-aware reporting rules:
 
 - `src.run_model_evaluation_report` reads `model_metadata.json`, `test_predictions.parquet`, deterministic `performance_by_period.csv`, and the `model_*` backtest artifacts
-- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics, fold coverage, and an overlap-aware deterministic-vs-model comparison
+- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics, fold coverage, an overlap-aware deterministic-vs-model comparison, and exploratory regime/subperiod diagnostics
 - it writes `outputs/reports/model_strategy_report.md`
 - it writes `outputs/reports/model_comparison_summary.json`
+- it writes `outputs/reports/model_subperiod_comparison.csv`
 - it appends a `model_evaluation_report` record to `outputs/reports/experiment_registry.jsonl`
 
 Important caveat:
@@ -329,4 +332,4 @@ Current automated status on 2026-03-30:
 
 ## Best Next Step
 
-Extend the overlap-aware model evaluation layer over longer, richer research history and add regime-aware robustness diagnostics and attribution.
+Extend the realized history so the new overlap-aware regime and subperiod diagnostics can be evaluated over materially longer windows and support stronger attribution.

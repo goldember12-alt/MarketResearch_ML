@@ -2,7 +2,7 @@
 
 ## Current State
 
-- Baseline evaluation reporting and overlap-aware model-aware reporting implemented
+- Baseline evaluation reporting and overlap-aware model-aware reporting with subperiod diagnostics implemented
 
 ## Files Touched
 
@@ -35,9 +35,11 @@
 - Added overlap-aware deterministic-vs-model comparison logic keyed only on shared realized dates.
 - Added held-out fold coverage diagnostics to the model-aware reporting path.
 - Added `outputs/reports/model_comparison_summary.json` as a machine-readable summary for model comparison reporting.
+- Added overlap-window subperiod and regime diagnostics by fold, calendar bucket, and benchmark direction.
+- Added `outputs/reports/model_subperiod_comparison.csv` as a machine-readable segment-level comparison table.
 - Implemented experiment-registry record creation and JSONL append behavior for deterministic and model-aware reports.
 - Replaced the scaffold evaluation-report CLI with a runnable implementation that writes the canonical reporting artifacts.
-- Added `src.run_model_evaluation_report` to write `outputs/reports/model_strategy_report.md` and `outputs/reports/model_comparison_summary.json` from the current canonical model artifacts.
+- Added `src.run_model_evaluation_report` to write `outputs/reports/model_strategy_report.md`, `outputs/reports/model_comparison_summary.json`, and `outputs/reports/model_subperiod_comparison.csv` from the current canonical model artifacts.
 - Updated docs so reporting now consumes the backtest-owned metric tables and logs exploratory runs explicitly.
 
 ## Testing Status
@@ -53,6 +55,7 @@
   - overlap-aware deterministic-vs-model comparison logic
   - held-out fold coverage diagnostics
   - comparison-convention metadata
+  - overlap-window subperiod and regime diagnostics
 - `tests/test_repo_skeleton.py` now exercises:
   - `src.run_evaluation_report`
   - `src.run_model_evaluation_report`
@@ -62,15 +65,16 @@
 
 - `.\.venv\Scripts\python.exe -m src.run_evaluation_report` completed successfully on 2026-03-28.
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
-- `outputs/reports/strategy_report.md`, `outputs/reports/model_strategy_report.md`, `outputs/reports/model_comparison_summary.json`, and `outputs/reports/experiment_registry.jsonl` were manually reviewed for content, append behavior, and required context.
+- `outputs/reports/strategy_report.md`, `outputs/reports/model_strategy_report.md`, `outputs/reports/model_comparison_summary.json`, `outputs/reports/model_subperiod_comparison.csv`, and `outputs/reports/experiment_registry.jsonl` were manually reviewed for content, append behavior, and required context.
 
 ## Known Issues / Risks
 
 - Current report output is intentionally cautious and still exploratory.
-- Regime-aware diagnostics, richer attribution, and more detailed report formatting remain unimplemented.
+- Regime-aware diagnostics are now implemented, but the current overlap window is too short for strong regime evidence.
+- Richer attribution and more detailed report formatting remain unimplemented.
 - Report conclusions still inherit revised-history caveats from fundamentals-derived inputs.
 - The model-aware report reflects the latest canonical model artifacts, so explicit run versioning is still limited.
 
 ## Immediate Next Step
 
-- Extend the overlap-aware model evaluation layer across longer realized history and add regime-aware robustness diagnostics once broader coverage is available.
+- Extend realized overlap coverage so the new regime and subperiod diagnostics can be evaluated over materially longer windows and support stronger attribution.

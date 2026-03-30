@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting are implemented. The next milestone is longer-history robustness evaluation and richer attribution.
+The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with exploratory subperiod diagnostics are implemented. The next milestone is longer-history robustness evaluation and richer attribution.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -114,13 +114,14 @@ Delivered:
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
 - `outputs/reports/model_comparison_summary.json`
+- `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
 - overlap-aware deterministic-vs-model comparison on shared realized dates only
 - held-out fold coverage diagnostics in the model-aware report
+- overlap-window regime and subperiod diagnostics by fold, calendar bucket, and benchmark direction
 
 Remaining work inside this phase:
 
-- regime-aware diagnostics
 - richer benchmark-relative attribution
 - longer-history overlap comparison once the research sample is expanded
 

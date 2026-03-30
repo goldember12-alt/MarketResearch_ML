@@ -38,6 +38,7 @@ artifacts:
   strategy_report: "outputs/reports/strategy_report.md"
   model_strategy_report: "outputs/reports/model_strategy_report.md"
   model_comparison_summary: "outputs/reports/model_comparison_summary.json"
+  model_subperiod_comparison: "outputs/reports/model_subperiod_comparison.csv"
   experiment_registry: "outputs/reports/experiment_registry.jsonl"
   performance_by_period: "outputs/backtests/performance_by_period.csv"
   risk_metrics_summary: "outputs/backtests/risk_metrics_summary.csv"

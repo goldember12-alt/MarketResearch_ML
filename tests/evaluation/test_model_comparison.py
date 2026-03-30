@@ -8,6 +8,7 @@ import pytest
 from src.evaluation.comparison import (
     build_fold_diagnostics,
     build_model_comparison_convention,
+    build_overlap_subperiod_diagnostics,
     build_model_vs_deterministic_overlap_summary,
 )
 
@@ -118,3 +119,64 @@ def test_build_model_comparison_convention_documents_alignment_rules() -> None:
     assert convention["aligned_on"] == "realized_return_date"
     assert convention["portfolio_return_series"] == "portfolio_net_return"
     assert "model_train_predictions" in convention["excluded_data"]
+
+
+def test_build_overlap_subperiod_diagnostics_groups_by_fold_and_regime() -> None:
+    """Subperiod diagnostics should summarize overlap by fold, calendar bucket, and regime."""
+    deterministic = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-05-31", "2024-06-30"]),
+            "formation_date": pd.to_datetime(["2024-04-30", "2024-05-31"]),
+            "portfolio_net_return": [0.01, 0.02],
+            "portfolio_gross_return": [0.011, 0.021],
+            "turnover": [0.1, 0.2],
+            "benchmark_return__SPY": [0.02, -0.01],
+        }
+    )
+    model = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-05-31", "2024-06-30"]),
+            "formation_date": pd.to_datetime(["2024-04-30", "2024-05-31"]),
+            "portfolio_net_return": [0.03, 0.01],
+            "portfolio_gross_return": [0.031, 0.011],
+            "turnover": [0.2, 0.1],
+            "benchmark_return__SPY": [0.02, -0.01],
+        }
+    )
+    test_predictions = pd.DataFrame(
+        {
+            "ticker": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "date": pd.to_datetime(["2024-04-30", "2024-04-30", "2024-05-31", "2024-05-31"]),
+            "realized_label_date": pd.to_datetime(
+                ["2024-05-31", "2024-05-31", "2024-06-30", "2024-06-30"]
+            ),
+            "fold_id": ["fold_001", "fold_001", "fold_002", "fold_002"],
+        }
+    )
+
+    diagnostics = build_overlap_subperiod_diagnostics(
+        deterministic_performance_by_period=deterministic,
+        model_performance_by_period=model,
+        test_predictions=test_predictions,
+        primary_benchmark="SPY",
+    )
+
+    assert diagnostics["available"] is True
+    assert diagnostics["regime_comparison_supported"] is True
+    assert diagnostics["distinct_benchmark_regimes"] == ["benchmark_down", "benchmark_up"]
+    assert diagnostics["segment_counts_by_type"]["fold_id"] == 2
+    assert diagnostics["segment_counts_by_type"]["benchmark_direction"] == 2
+    fold_segment = next(
+        segment
+        for segment in diagnostics["segments"]
+        if segment["segment_type"] == "fold_id" and segment["segment_id"] == "fold_001"
+    )
+    assert fold_segment["period_count"] == 1
+    assert fold_segment["coverage_share_of_overlap"] == 0.5
+    regime_segment = next(
+        segment
+        for segment in diagnostics["segments"]
+        if segment["segment_type"] == "benchmark_direction"
+        and segment["segment_id"] == "benchmark_up"
+    )
+    assert regime_segment["primary_benchmark_cumulative_return"] == pytest.approx(0.02)

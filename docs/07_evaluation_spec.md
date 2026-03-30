@@ -53,6 +53,7 @@ Current reporting outputs:
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
 - `outputs/reports/model_comparison_summary.json`
+- `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
 
 Current modeling-diagnostic outputs:
@@ -86,16 +87,17 @@ The current implementation provides:
 - a benchmark-aware exploratory strategy report
 - a model-aware exploratory strategy report for the current canonical model run
 - overlap-aware deterministic-vs-model comparison metrics computed only on shared realized dates
+- overlap-window regime and subperiod diagnostics broken out by fold, calendar bucket, and primary-benchmark direction
 - held-out fold coverage and fold-level diagnostics derived from aggregated out-of-sample predictions
 - a machine-readable comparison summary for the model-aware reporting stage
+- a machine-readable subperiod comparison table for the model-aware reporting stage
 - experiment-registry append logic for meaningful evaluation-report runs
 
 The following remain deferred:
 
-- subperiod summary by major market regime
 - information ratio and benchmark-relative attribution tables
 - concentration-aware interpretation for the seeded tech-heavy universe
-- automated regime-aware report sections
+- stronger regime evidence from materially longer realized overlap history
 
 ## Interpretation Standard
 

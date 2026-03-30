@@ -390,6 +390,7 @@ Current contents:
 - held-out fold coverage and fold-level diagnostics
 - model-driven portfolio summary metrics
 - overlap-aware deterministic-vs-model comparison on shared realized dates only
+- overlap-window regime and subperiod diagnostics
 - explicit benchmark comparison
 - risk controls
 - bias caveats
@@ -404,7 +405,39 @@ Structure:
 - comparison convention metadata for realized-date alignment and excluded data
 - held-out fold coverage summary and fold-level diagnostics
 - overlap-aware deterministic-vs-model backtest comparison using shared realized dates only
+- overlap-window regime and subperiod diagnostics summary metadata
 - reporting caveats carried forward into the machine-readable summary
+
+### `outputs/reports/model_subperiod_comparison.csv`
+
+Primary key:
+
+- `segment_type`, `segment_id`
+
+Columns:
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `segment_type` | string | currently `fold_id`, `calendar_month`, `calendar_quarter`, or `benchmark_direction` |
+| `segment_id` | string | segment label within the segment type |
+| `period_count` | int | overlapping realized months inside the segment |
+| `realized_start` | string | first realized overlap date in the segment |
+| `realized_end` | string | last realized overlap date in the segment |
+| `coverage_share_of_overlap` | float | segment month count divided by total overlap month count |
+| `primary_benchmark` | string | benchmark used for regime bucketing, currently the model label benchmark |
+| `primary_benchmark_average_monthly_return` | float | mean realized benchmark return inside the segment |
+| `primary_benchmark_cumulative_return` | float | compounded benchmark return inside the segment |
+| `model_cumulative_return` | float | compounded model-driven net return inside the segment |
+| `deterministic_cumulative_return` | float | compounded deterministic net return inside the segment |
+| `cumulative_return_gap` | float | model cumulative return minus deterministic cumulative return |
+| `average_monthly_return_gap` | float | mean monthly return difference inside the segment |
+| `winning_month_share` | float | share of overlap months where the model outperformed the deterministic baseline |
+| `model_sharpe_ratio` | float | segment-level zero-rate Sharpe for the model |
+| `deterministic_sharpe_ratio` | float | segment-level zero-rate Sharpe for the deterministic baseline |
+| `relative_sharpe_ratio` | float | model Sharpe divided by deterministic Sharpe when defined |
+| `average_turnover_gap` | float | model turnover minus deterministic turnover |
+| `sparse_segment` | bool | true when the segment remains too short for anything beyond descriptive interpretation |
+| `note` | string | cautionary interpretation label for the segment |
 
 ### `outputs/reports/experiment_registry.jsonl`
 
@@ -428,7 +461,7 @@ One JSON object per line with at minimum:
 - `status`
 - `next_step`
 
-Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`. Model-aware reporting runs append with `stage = "model_evaluation_report"` and now include fold diagnostics plus overlap-aware deterministic comparison details inside `result_summary`.
+Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`. Model-aware reporting runs append with `stage = "model_evaluation_report"` and now include fold diagnostics, overlap-aware deterministic comparison details, and subperiod/regime diagnostics inside `result_summary`.
 
 ### `outputs/models/train_predictions.parquet`
 
@@ -671,6 +704,7 @@ The model-evaluation-report stage currently writes:
 
 - `outputs/reports/model_strategy_report.md`
 - `outputs/reports/model_comparison_summary.json`
+- `outputs/reports/model_subperiod_comparison.csv`
 - `outputs/reports/experiment_registry.jsonl`
 
 ### Modeling-Stage QC
