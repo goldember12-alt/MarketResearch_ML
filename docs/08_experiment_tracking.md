@@ -2,11 +2,11 @@
 
 ## Canonical Registry
 
-Meaningful evaluation-report, modeling-baseline, and model-backtest runs append one record per run to:
+Meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs append one record per run to:
 
 - `outputs/reports/experiment_registry.jsonl`
 
-The implemented writers append a new JSON object line for every successful `src.run_evaluation_report`, `src.run_modeling_baselines`, and `src.run_model_backtest` execution. Model-specific CLI runs also append records because they overwrite the same canonical model artifacts.
+The implemented writers append a new JSON object line for every successful `src.run_evaluation_report`, `src.run_modeling_baselines`, `src.run_model_backtest`, and `src.run_model_evaluation_report` execution. Model-specific CLI runs also append records because they overwrite the same canonical model artifacts.
 
 ## Minimum Record Fields
 
@@ -41,7 +41,8 @@ The implemented writers append a new JSON object line for every successful `src.
 - model-backtest records mark the stage as `model_backtest`
 - model-backtest records store the model type, aggregated out-of-sample prediction splits used for formation, split scheme or fold context, and benchmark-aware backtest metrics
 - model-aware reporting records mark the stage as `model_evaluation_report`
-- model-aware reporting records store both out-of-sample model diagnostics and model-driven benchmark-aware backtest metrics
+- model-aware reporting records store out-of-sample model diagnostics, held-out fold coverage, the exact overlap comparison convention, and model-driven benchmark-aware backtest metrics
+- model-aware reporting records also store deterministic-vs-model overlap comparison metrics keyed only on shared realized dates
 
 ## Tracking Rules
 

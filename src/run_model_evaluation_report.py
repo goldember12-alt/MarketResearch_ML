@@ -8,7 +8,7 @@ import logging
 import pandas as pd
 
 from src.backtest.config import configure_backtest_logging, load_backtest_pipeline_config
-from src.data.io import read_parquet_required
+from src.data.io import read_parquet_required, write_json
 from src.evaluation.summary import build_model_evaluation_summary
 from src.models.config import load_model_pipeline_config
 from src.reporting.markdown import render_model_strategy_report
@@ -40,7 +40,9 @@ def main() -> int:
         "model_benchmark_returns",
     )
     performance_by_period = pd.read_csv(project_config.outputs.model_performance_by_period)
+    deterministic_performance_by_period = pd.read_csv(project_config.outputs.performance_by_period)
     risk_metrics_summary = pd.read_csv(project_config.outputs.model_risk_metrics_summary)
+    test_predictions = read_parquet_required(project_config.outputs.test_predictions, "test_predictions")
 
     summary = build_model_evaluation_summary(
         project_config=project_config,
@@ -50,7 +52,9 @@ def main() -> int:
         model_backtest_summary=model_backtest_summary,
         portfolio_returns=portfolio_returns,
         performance_by_period=performance_by_period,
+        deterministic_performance_by_period=deterministic_performance_by_period,
         risk_metrics_summary=risk_metrics_summary,
+        test_predictions=test_predictions,
     )
     report_text = render_model_strategy_report(
         summary,
@@ -59,11 +63,27 @@ def main() -> int:
     )
     project_config.outputs.model_strategy_report.parent.mkdir(parents=True, exist_ok=True)
     project_config.outputs.model_strategy_report.write_text(report_text, encoding="utf-8")
+    write_json(
+        {
+            "generated_at_utc": summary["generated_at_utc"],
+            "stage": "model_evaluation_report",
+            "status": summary["status"],
+            "model_type": summary["signal_or_model"],
+            "comparison_convention": summary["comparison_convention"],
+            "fold_diagnostics": summary["fold_diagnostics"],
+            "deterministic_baseline_overlap_comparison": summary[
+                "deterministic_baseline_overlap_comparison"
+            ],
+            "bias_caveats": summary["bias_caveats"],
+        },
+        project_config.outputs.model_comparison_summary,
+    )
 
     record = build_model_experiment_record(
         summary,
         artifacts_written=[
             str(project_config.outputs.model_strategy_report),
+            str(project_config.outputs.model_comparison_summary),
             str(project_config.outputs.experiment_registry),
         ],
     )
@@ -72,6 +92,7 @@ def main() -> int:
     logger.info("Wrote %s", project_config.outputs.model_strategy_report)
     print("Model evaluation reporting completed.")
     print(project_config.outputs.model_strategy_report)
+    print(project_config.outputs.model_comparison_summary)
     print(project_config.outputs.experiment_registry)
     return 0
 

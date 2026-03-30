@@ -19,6 +19,70 @@ def _num(value: Any) -> str:
     return f"{float(value):.3f}"
 
 
+def _render_fold_diagnostics(fold_diagnostics: dict[str, Any]) -> list[str]:
+    """Render the fold-coverage block for the model strategy report."""
+    lines = [
+        "## Fold Coverage",
+        f"- Held-out decision date range: `{fold_diagnostics.get('decision_start')}` to `{fold_diagnostics.get('decision_end')}`",
+        f"- Held-out realized date range: `{fold_diagnostics.get('realized_start')}` to `{fold_diagnostics.get('realized_end')}`",
+        f"- Held-out decision month count: `{fold_diagnostics.get('heldout_decision_month_count')}`",
+        f"- Held-out realized month count: `{fold_diagnostics.get('heldout_realized_month_count')}`",
+        f"- Held-out row count: `{fold_diagnostics.get('heldout_row_count')}`",
+    ]
+    for fold in fold_diagnostics.get("folds", []):
+        lines.append(
+            "- "
+            + (
+                f"`{fold['fold_id']}`: decision `{fold['decision_start']}` to `{fold['decision_end']}`, "
+                f"realized `{fold['realized_start']}` to `{fold['realized_end']}`, "
+                f"held-out rows `{fold['heldout_row_count']}`, "
+                f"model accuracy `{_pct(fold['model_test_accuracy'])}`, "
+                f"deterministic accuracy `{_pct(fold['deterministic_test_accuracy'])}`, "
+                f"model ROC AUC `{_num(fold['model_test_roc_auc'])}`, "
+                f"deterministic ROC AUC `{_num(fold['deterministic_test_roc_auc'])}`"
+            )
+        )
+    return lines
+
+
+def _render_overlap_comparison(
+    comparison: dict[str, Any],
+    convention: dict[str, Any],
+) -> list[str]:
+    """Render the overlap-aware deterministic-vs-model comparison block."""
+    if not comparison.get("available"):
+        return [
+            "## Deterministic Baseline Overlap Comparison",
+            "- No overlapping realized dates were available between the deterministic and model-driven backtests.",
+        ]
+
+    metrics = comparison["comparison_metrics"]
+    model_overlap = comparison["model_metrics_on_overlap"]
+    deterministic_overlap = comparison["deterministic_metrics_on_overlap"]
+    lines = [
+        "## Deterministic Baseline Overlap Comparison",
+        f"- Alignment convention: `{convention['join_method']}` on `{convention['aligned_on']}` using `{convention['portfolio_return_series']}` only",
+        f"- Overlap realized date range: `{comparison['realized_start']}` to `{comparison['realized_end']}` across `{comparison['overlap_period_count']}` months",
+        f"- Model overlap cumulative return: `{_pct(model_overlap.get('cumulative_return'))}`",
+        f"- Deterministic overlap cumulative return: `{_pct(deterministic_overlap.get('cumulative_return'))}`",
+        f"- Cumulative return gap: `{_pct(metrics.get('cumulative_return_gap'))}`",
+        f"- Average monthly return gap: `{_pct(metrics.get('average_monthly_return_gap'))}`",
+        f"- Winning-month share: `{_pct(metrics.get('winning_month_share'))}`",
+        f"- Relative Sharpe ratio: `{_num(metrics.get('relative_sharpe_ratio'))}`",
+        f"- Average turnover gap: `{_pct(metrics.get('average_turnover_gap'))}`",
+    ]
+    for period in comparison.get("periods", []):
+        lines.append(
+            "- "
+            + (
+                f"`{period['date']}`: model `{_pct(period['model_portfolio_net_return'])}`, "
+                f"deterministic `{_pct(period['deterministic_portfolio_net_return'])}`, "
+                f"gap `{_pct(period['monthly_return_gap'])}`"
+            )
+        )
+    return lines
+
+
 def render_strategy_report(
     summary: dict[str, Any],
     *,
@@ -104,6 +168,9 @@ def render_model_strategy_report(
     portfolio_gross = summary["portfolio_metrics"]["gross"]
     diagnostics = summary["model_diagnostics"]
     oos_metrics = diagnostics["out_of_sample_evaluation"]
+    fold_diagnostics = summary["fold_diagnostics"]
+    overlap_comparison = summary["deterministic_baseline_overlap_comparison"]
+    comparison_convention = summary["comparison_convention"]
     lines = [
         "# Model Strategy Report",
         "",
@@ -131,19 +198,26 @@ def render_model_strategy_report(
         f"- Out-of-sample ROC AUC: `{_num(oos_metrics.get('roc_auc'))}`",
         f"- Out-of-sample average precision: `{_num(oos_metrics.get('average_precision'))}`",
         "",
-        "## Portfolio Summary",
-        f"- Net cumulative return: `{_pct(portfolio_net.get('cumulative_return'))}`",
-        f"- Net annualized return: `{_pct(portfolio_net.get('annualized_return'))}`",
-        f"- Net annualized volatility: `{_pct(portfolio_net.get('annualized_volatility'))}`",
-        f"- Net Sharpe ratio: `{_num(portfolio_net.get('sharpe_ratio'))}`",
-        f"- Net Sortino ratio: `{_num(portfolio_net.get('sortino_ratio'))}`",
-        f"- Net max drawdown: `{_pct(portfolio_net.get('max_drawdown'))}`",
-        f"- Hit rate: `{_pct(portfolio_net.get('hit_rate'))}`",
-        f"- Average turnover: `{_pct(portfolio_net.get('average_turnover'))}`",
-        f"- Gross cumulative return: `{_pct(portfolio_gross.get('cumulative_return'))}`",
-        "",
-        "## Benchmark Comparison",
     ]
+    lines.extend(_render_fold_diagnostics(fold_diagnostics))
+    lines.extend(
+        [
+            "",
+            "## Portfolio Summary",
+            f"- Net cumulative return: `{_pct(portfolio_net.get('cumulative_return'))}`",
+            f"- Net annualized return: `{_pct(portfolio_net.get('annualized_return'))}`",
+            f"- Net annualized volatility: `{_pct(portfolio_net.get('annualized_volatility'))}`",
+            f"- Net Sharpe ratio: `{_num(portfolio_net.get('sharpe_ratio'))}`",
+            f"- Net Sortino ratio: `{_num(portfolio_net.get('sortino_ratio'))}`",
+            f"- Net max drawdown: `{_pct(portfolio_net.get('max_drawdown'))}`",
+            f"- Hit rate: `{_pct(portfolio_net.get('hit_rate'))}`",
+            f"- Average turnover: `{_pct(portfolio_net.get('average_turnover'))}`",
+            f"- Gross cumulative return: `{_pct(portfolio_gross.get('cumulative_return'))}`",
+            "",
+        ]
+    )
+    lines.extend(_render_overlap_comparison(overlap_comparison, comparison_convention))
+    lines.extend(["", "## Benchmark Comparison"])
 
     for comparison in summary["benchmark_comparison"]:
         lines.append(

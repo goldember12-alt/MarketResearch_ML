@@ -8,6 +8,11 @@ from typing import Any
 import pandas as pd
 
 from src.backtest.config import BacktestPipelineConfig
+from src.evaluation.comparison import (
+    build_fold_diagnostics,
+    build_model_comparison_convention,
+    build_model_vs_deterministic_overlap_summary,
+)
 from src.models.config import ModelPipelineConfig
 from src.signals.config import SignalPipelineConfig
 from src.utils.config import ProjectConfig
@@ -224,7 +229,9 @@ def build_model_evaluation_summary(
     model_backtest_summary: dict[str, Any],
     portfolio_returns: pd.DataFrame,
     performance_by_period: pd.DataFrame,
+    deterministic_performance_by_period: pd.DataFrame,
     risk_metrics_summary: pd.DataFrame,
+    test_predictions: pd.DataFrame,
 ) -> dict[str, Any]:
     """Build a report-ready summary for the model-driven backtest and modeling diagnostics."""
     metrics_by_series = _metrics_lookup(risk_metrics_summary)
@@ -233,6 +240,15 @@ def build_model_evaluation_summary(
         performance_by_period,
         metrics_by_series,
         backtest_config.benchmarks.identifiers,
+    )
+    comparison_convention = build_model_comparison_convention()
+    fold_diagnostics = build_fold_diagnostics(
+        test_predictions=test_predictions,
+        model_metadata=model_metadata,
+    )
+    deterministic_baseline_overlap_comparison = build_model_vs_deterministic_overlap_summary(
+        deterministic_performance_by_period=deterministic_performance_by_period,
+        model_performance_by_period=performance_by_period,
     )
 
     realized_period_count = int(len(portfolio_returns))
@@ -252,7 +268,28 @@ def build_model_evaluation_summary(
             f"Across {realized_period_count} realized model-backtest monthly periods, the portfolio "
             f"net cumulative return was {cumulative_return:.2%}. "
         )
+    overlap_text = ""
+    overlap_metrics = deterministic_baseline_overlap_comparison.get("comparison_metrics", {})
+    overlap_period_count = deterministic_baseline_overlap_comparison.get("overlap_period_count", 0)
+    overlap_cumulative_gap = overlap_metrics.get("cumulative_return_gap")
+    if deterministic_baseline_overlap_comparison.get("available") and overlap_cumulative_gap is not None:
+        relative_phrase = (
+            "outperformed"
+            if overlap_cumulative_gap > 0.0
+            else "lagged"
+            if overlap_cumulative_gap < 0.0
+            else "matched"
+        )
+        overlap_text = (
+            f"Across the {overlap_period_count} realized months overlapping the deterministic "
+            f"baseline, the model-driven portfolio {relative_phrase} by "
+            f"{abs(overlap_cumulative_gap):.2%} in cumulative net return. "
+        )
     interpretation = "This model run is exploratory. " + portfolio_result_text + (
+        overlap_text
+        if overlap_text
+        else ""
+    ) + (
         "The model is now evaluated through chronology-safe out-of-sample folds and a downstream "
         "model-driven backtest, but the sample remains short, the data are local fixtures, and "
         "fundamentals are not point-in-time safe."
@@ -325,9 +362,12 @@ def build_model_evaluation_summary(
                 "deterministic_baseline_context", {}
             ),
         },
+        "comparison_convention": comparison_convention,
+        "fold_diagnostics": fold_diagnostics,
+        "deterministic_baseline_overlap_comparison": deterministic_baseline_overlap_comparison,
         "risk_controls": _model_risk_controls(),
         "bias_caveats": _model_bias_caveats(),
         "qc_summary": model_backtest_summary.get("qc", {}),
         "interpretation": interpretation,
-        "next_step": "Extend model-aware reporting with longer-history walk-forward coverage and richer robustness diagnostics.",
+        "next_step": "Extend the overlap-aware model evaluation layer across longer research history and add regime-aware robustness diagnostics once broader realized coverage is available.",
     }

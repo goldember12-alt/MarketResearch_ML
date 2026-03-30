@@ -89,6 +89,11 @@ def build_model_experiment_record(
                 "out_of_sample_evaluation": summary["model_diagnostics"][
                     "out_of_sample_evaluation"
                 ],
+                "fold_diagnostics": summary["fold_diagnostics"],
+                "comparison_convention": summary["comparison_convention"],
+                "deterministic_baseline_overlap_comparison": summary[
+                    "deterministic_baseline_overlap_comparison"
+                ],
                 "benchmark_comparison": summary["benchmark_comparison"],
             },
             "interpretation": summary["interpretation"],

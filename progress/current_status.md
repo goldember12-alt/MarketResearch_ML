@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and model-aware reporting are implemented for the local-file-first workflow
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting are implemented for the local-file-first workflow
 
 ## What Is Completed
 
@@ -27,6 +27,9 @@
 - `src.reporting` includes:
   - markdown strategy-report rendering
   - markdown model-strategy-report rendering
+  - machine-readable model comparison summary generation
+  - overlap-aware deterministic-vs-model comparison reporting on shared realized dates only
+  - held-out fold coverage diagnostics in model-aware reporting
   - experiment-registry record creation
   - JSONL append logic for meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs
 - `src.models` includes:
@@ -44,6 +47,7 @@
   - `outputs/reports/experiment_registry.jsonl`
 - `src.run_model_evaluation_report.py` reads the current canonical model metadata plus model-driven backtest outputs and writes:
   - `outputs/reports/model_strategy_report.md`
+  - `outputs/reports/model_comparison_summary.json`
   - `outputs/reports/experiment_registry.jsonl`
 - `src.run_modeling_baselines.py` reads the feature panel, monthly panel, and deterministic signal context and writes:
   - `outputs/models/train_predictions.parquet`
@@ -75,6 +79,10 @@
 - Focused model-backtest tests were added for:
   - aggregated out-of-sample split filtering
   - model-score ranking and top-N selection
+- Focused model-evaluation comparison tests were added for:
+  - overlap-aware deterministic-vs-model comparison logic
+  - held-out fold coverage diagnostics
+  - comparison-convention metadata
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
   - `src.run_evaluation_report`
@@ -83,7 +91,7 @@
   - `src.run_random_forest`
   - `src.run_model_backtest`
   - `src.run_model_evaluation_report`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `53 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `56 passed` on 2026-03-30.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -106,14 +114,16 @@
   - `model_backtest_summary.json`: model type, split scheme, fold count, prediction splits used, shared backtest metrics, and caveats present
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
 - Resulting model-aware reporting artifacts were manually checked:
-  - `model_strategy_report.md`: model diagnostics, portfolio metrics, benchmark comparison, risk controls, caveats, interpretation, and next step present
-  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report`
+  - `model_strategy_report.md`: model diagnostics, fold coverage, overlap-aware deterministic comparison, benchmark comparison, risk controls, caveats, interpretation, and next step present
+  - `model_comparison_summary.json`: comparison convention, fold diagnostics, and overlap-only deterministic-vs-model metrics present
+  - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison content in `result_summary`
+- `.\.venv\Scripts\python.exe -m src.run_logistic_regression` was rerun successfully on 2026-03-30 after the automated suite to restore the canonical selected-model artifacts to the default `logistic_regression` state before rerunning `src.run_model_backtest` and `src.run_model_evaluation_report`.
 - Previous manual verification for `src.run_backtest` remains valid:
   - the backtest outputs used by reporting and modeling comparison context were present and aligned before the modeling run
 
 ## Immediate Next Step
 
-- Extend walk-forward evaluation over longer research history and add richer robustness diagnostics and attribution for model-driven runs.
+- Extend the overlap-aware evaluation layer over longer research history and add regime-aware robustness diagnostics and attribution for model-driven runs.
 
 ## Known Risks / Open Issues
 
@@ -124,7 +134,7 @@
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
 - The current model-driven backtest now uses aggregated out-of-sample windows, but realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.
-- Reporting is now implemented, but richer regime diagnostics and attribution are still deferred.
+- Reporting is now implemented, but richer regime diagnostics, longer-history overlap evaluation, and attribution are still deferred.
 
 ## Current Output Structure
 
@@ -160,6 +170,7 @@
 - `outputs/backtests/model_risk_metrics_summary.csv`
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/experiment_registry.jsonl`
 - `outputs/models/train_predictions.parquet`
 - `outputs/models/test_predictions.parquet`

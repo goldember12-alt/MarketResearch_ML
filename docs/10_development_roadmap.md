@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and model-aware reporting are implemented. The next milestone is longer-history robustness evaluation and richer attribution.
+The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting are implemented. The next milestone is longer-history robustness evaluation and richer attribution.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -102,7 +102,7 @@ Remaining risks inside this phase:
 
 Status:
 
-- implemented baseline
+- implemented with overlap-aware model comparison reporting
 
 Delivered:
 
@@ -113,13 +113,16 @@ Delivered:
 - runnable `src.run_model_evaluation_report`
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/experiment_registry.jsonl`
+- overlap-aware deterministic-vs-model comparison on shared realized dates only
+- held-out fold coverage diagnostics in the model-aware report
 
 Remaining work inside this phase:
 
 - regime-aware diagnostics
 - richer benchmark-relative attribution
-- more detailed report sections and formatting
+- longer-history overlap comparison once the research sample is expanded
 
 ## Phase 7: Modeling Baselines
 
@@ -144,8 +147,8 @@ Delivered:
 
 Remaining work inside this phase:
 
-- richer model-aware reporting beyond prediction diagnostics
 - longer-history walk-forward evaluation on richer research data
+- richer multi-model comparison without overwriting the same canonical model artifacts
 
 ## Phase 7A: Held-Out Model-Driven Backtest
 
@@ -163,7 +166,6 @@ Delivered:
 Remaining work inside this phase:
 
 - compare multiple model runs systematically without overwriting the same canonical model artifacts
-- add model-aware reporting comparable to deterministic evaluation output
 - extend the realized out-of-sample history with richer research data
 
 ## Phase 8: Expansion And Forward Evaluation

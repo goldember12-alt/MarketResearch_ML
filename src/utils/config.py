@@ -108,6 +108,7 @@ class OutputPathsConfig:
     model_signal_rankings: Path
     strategy_report: Path
     model_strategy_report: Path
+    model_comparison_summary: Path
     experiment_registry: Path
     performance_by_period: Path
     risk_metrics_summary: Path
@@ -241,6 +242,7 @@ def load_project_config(root_dir: Path | None = None) -> ProjectConfig:
         model_signal_rankings=artifact_paths["model_signal_rankings"],
         strategy_report=artifact_paths["strategy_report"],
         model_strategy_report=artifact_paths["model_strategy_report"],
+        model_comparison_summary=artifact_paths["model_comparison_summary"],
         experiment_registry=artifact_paths["experiment_registry"],
         performance_by_period=artifact_paths["performance_by_period"],
         risk_metrics_summary=artifact_paths["risk_metrics_summary"],

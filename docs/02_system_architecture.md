@@ -142,10 +142,11 @@ Deterministic sample raw files are included in the repo so the implemented stage
 
 `src.run_model_evaluation_report` performs:
 
-1. read `model_metadata`, `model_backtest_summary`, model return artifacts, and model comparison tables
-2. combine out-of-sample classification diagnostics with model-driven backtest metrics
+1. read `model_metadata`, aggregated held-out `test_predictions`, deterministic `performance_by_period`, `model_backtest_summary`, and model return artifacts
+2. combine out-of-sample classification diagnostics with model-driven backtest metrics, held-out fold coverage, and overlap-aware deterministic-baseline comparison metrics
 3. render `outputs/reports/model_strategy_report.md`
-4. append one model-aware exploratory record to `outputs/reports/experiment_registry.jsonl`
+4. write `outputs/reports/model_comparison_summary.json`
+5. append one model-aware exploratory record to `outputs/reports/experiment_registry.jsonl`
 
 ## Implemented Module Responsibilities
 

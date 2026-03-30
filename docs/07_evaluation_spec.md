@@ -52,6 +52,7 @@ Current reporting outputs:
 
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/experiment_registry.jsonl`
 
 Current modeling-diagnostic outputs:
@@ -84,6 +85,9 @@ The current implementation provides:
 - per-period aligned portfolio and benchmark return tables
 - a benchmark-aware exploratory strategy report
 - a model-aware exploratory strategy report for the current canonical model run
+- overlap-aware deterministic-vs-model comparison metrics computed only on shared realized dates
+- held-out fold coverage and fold-level diagnostics derived from aggregated out-of-sample predictions
+- a machine-readable comparison summary for the model-aware reporting stage
 - experiment-registry append logic for meaningful evaluation-report runs
 
 The following remain deferred:
@@ -98,6 +102,7 @@ The following remain deferred:
 - Deterministic baselines come first.
 - No model or strategy should be evaluated only in-sample.
 - Current model-stage metrics include both multi-window prediction diagnostics and a short aggregated out-of-sample model-driven backtest, but they remain exploratory.
+- Deterministic-vs-model comparisons must be computed only on overlapping realized dates when the model backtest covers fewer months than the deterministic baseline.
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.

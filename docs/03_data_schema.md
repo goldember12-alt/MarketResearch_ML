@@ -387,12 +387,24 @@ Current contents:
 - prediction and realized date ranges
 - benchmark, rebalance, and cost assumptions
 - out-of-sample classification diagnostics
+- held-out fold coverage and fold-level diagnostics
 - model-driven portfolio summary metrics
+- overlap-aware deterministic-vs-model comparison on shared realized dates only
 - explicit benchmark comparison
 - risk controls
 - bias caveats
 - cautious interpretation
 - next recommended implementation step
+
+### `outputs/reports/model_comparison_summary.json`
+
+Structure:
+
+- run timestamp and stage status
+- comparison convention metadata for realized-date alignment and excluded data
+- held-out fold coverage summary and fold-level diagnostics
+- overlap-aware deterministic-vs-model backtest comparison using shared realized dates only
+- reporting caveats carried forward into the machine-readable summary
 
 ### `outputs/reports/experiment_registry.jsonl`
 
@@ -416,7 +428,7 @@ One JSON object per line with at minimum:
 - `status`
 - `next_step`
 
-Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`. Model-aware reporting runs append with `stage = "model_evaluation_report"`.
+Modeling-stage runs now also append exploratory records here, using the same high-level fields but with `stage = "modeling_baselines"`. Model-aware reporting runs append with `stage = "model_evaluation_report"` and now include fold diagnostics plus overlap-aware deterministic comparison details inside `result_summary`.
 
 ### `outputs/models/train_predictions.parquet`
 
@@ -653,6 +665,12 @@ The model-driven backtest writes the same QC structure inside:
 The evaluation-report stage currently writes:
 
 - `outputs/reports/strategy_report.md`
+- `outputs/reports/experiment_registry.jsonl`
+
+The model-evaluation-report stage currently writes:
+
+- `outputs/reports/model_strategy_report.md`
+- `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/experiment_registry.jsonl`
 
 ### Modeling-Stage QC

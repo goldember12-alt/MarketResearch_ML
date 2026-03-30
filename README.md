@@ -11,7 +11,7 @@ The deterministic baseline workflow is now implemented through evaluation report
 - `src.signals` converts the feature panel into deterministic cross-sectional rankings
 - `src.backtest` converts those rankings into monthly holdings, turnover, portfolio returns, and benchmark comparisons
 - `src.evaluation` builds a benchmark-aware summary from the backtest artifacts
-- `src.reporting` writes a human-readable strategy report and appends an experiment-registry record
+- `src.reporting` writes human-readable strategy reports, a model comparison summary artifact, and experiment-registry records
 - `src.models` builds leakage-safe labels, fixed or expanding chronological folds, fold-local train-only preprocessing, baseline classifiers, model metadata artifacts, aggregated out-of-sample model score rankings, and model-driven backtest outputs
 - `src.run_model_evaluation_report` now writes a model-aware exploratory report from the current canonical model artifacts
 
@@ -89,6 +89,7 @@ Reporting artifacts:
 
 - `outputs/reports/strategy_report.md`
 - `outputs/reports/model_strategy_report.md`
+- `outputs/reports/model_comparison_summary.json`
 - `outputs/reports/experiment_registry.jsonl`
 
 Modeling artifacts:
@@ -160,6 +161,7 @@ Evaluation and reporting rules:
 
 - every generated report is explicitly marked exploratory unless stronger evidence is actually available
 - benchmark comparisons are carried through into the report and experiment registry
+- model-aware reporting now compares model-driven backtest returns against the deterministic baseline only on overlapping realized dates
 - bias caveats are written directly into the strategy report
 - meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
 
@@ -186,9 +188,10 @@ Model-driven backtest rules:
 
 Model-aware reporting rules:
 
-- `src.run_model_evaluation_report` reads `model_metadata.json` plus the `model_*` backtest artifacts
-- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics
+- `src.run_model_evaluation_report` reads `model_metadata.json`, `test_predictions.parquet`, deterministic `performance_by_period.csv`, and the `model_*` backtest artifacts
+- it combines out-of-sample classification diagnostics with model-driven portfolio and benchmark metrics, fold coverage, and an overlap-aware deterministic-vs-model comparison
 - it writes `outputs/reports/model_strategy_report.md`
+- it writes `outputs/reports/model_comparison_summary.json`
 - it appends a `model_evaluation_report` record to `outputs/reports/experiment_registry.jsonl`
 
 Important caveat:
@@ -316,13 +319,14 @@ Current automated status on 2026-03-29:
 Manual verification completed on 2026-03-30:
 
 - `.\.venv\Scripts\python.exe -m src.run_modeling_baselines`
+- `.\.venv\Scripts\python.exe -m src.run_logistic_regression`
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest`
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report`
 
 Current automated status on 2026-03-30:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `53 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `56 passed`
 
 ## Best Next Step
 
-Extend the walk-forward path over longer, richer research history and add broader model robustness diagnostics and attribution.
+Extend the overlap-aware model evaluation layer over longer, richer research history and add regime-aware robustness diagnostics and attribution.

@@ -172,6 +172,62 @@ def _model_backtest_summary_fixture() -> dict[str, object]:
     }
 
 
+def _deterministic_overlap_performance_fixture() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-04-30", "2024-05-31", "2024-06-30"]),
+            "formation_date": pd.to_datetime(["2024-03-31", "2024-04-30", "2024-05-31"]),
+            "portfolio_net_return": [0.005, 0.01, 0.02],
+            "portfolio_gross_return": [0.006, 0.011, 0.021],
+            "turnover": [0.0, 0.2, 0.1],
+            "benchmark_return__SPY": [0.008, 0.018, 0.012],
+            "benchmark_return__QQQ": [0.009, 0.017, 0.011],
+            "benchmark_return__equal_weight_universe": [0.01, 0.02, 0.013],
+        }
+    )
+
+
+def _model_performance_by_period_fixture() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-05-31", "2024-06-30"]),
+            "formation_date": pd.to_datetime(["2024-04-30", "2024-05-31"]),
+            "portfolio_net_return": [0.02, 0.01],
+            "portfolio_gross_return": [0.021, 0.011],
+            "turnover": [0.4, 0.1],
+            "benchmark_return__SPY": [0.018, 0.012],
+            "benchmark_return__QQQ": [0.017, 0.011],
+            "benchmark_return__equal_weight_universe": [0.02, 0.013],
+        }
+    )
+
+
+def _model_portfolio_returns_fixture() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-05-31", "2024-06-30"]),
+            "formation_date": pd.to_datetime(["2024-04-30", "2024-05-31"]),
+            "portfolio_net_return": [0.02, 0.01],
+            "turnover": [0.4, 0.1],
+        }
+    )
+
+
+def _model_test_predictions_fixture() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "ticker": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "date": pd.to_datetime(["2024-04-30", "2024-04-30", "2024-05-31", "2024-05-31"]),
+            "realized_label_date": pd.to_datetime(
+                ["2024-05-31", "2024-05-31", "2024-06-30", "2024-06-30"]
+            ),
+            "fold_id": ["fold_001", "fold_001", "fold_002", "fold_002"],
+            "fold_index": [1, 1, 2, 2],
+            "ticker_score": [0.2, 0.8, 0.3, 0.7],
+        }
+    )
+
+
 def test_build_evaluation_summary_includes_benchmark_comparison() -> None:
     """Evaluation summaries should include benchmark-aware comparisons and caveats."""
     project_config = load_project_config()
@@ -234,15 +290,25 @@ def test_build_model_evaluation_summary_includes_model_diagnostics() -> None:
         backtest_config=backtest_config,
         model_metadata=_model_metadata_fixture(),
         model_backtest_summary=_model_backtest_summary_fixture(),
-        portfolio_returns=_portfolio_returns_fixture(),
-        performance_by_period=_performance_by_period_fixture(),
+        portfolio_returns=_model_portfolio_returns_fixture(),
+        performance_by_period=_model_performance_by_period_fixture(),
+        deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
+        test_predictions=_model_test_predictions_fixture(),
     )
 
     assert summary["status"] == "exploratory_completed"
     assert summary["model_diagnostics"]["split_scheme"] == "expanding_walk_forward"
     assert summary["model_diagnostics"]["fold_count"] == 2
     assert summary["model_diagnostics"]["out_of_sample_evaluation"]["accuracy"] == 0.75
+    assert summary["fold_diagnostics"]["heldout_decision_month_count"] == 2
+    assert summary["deterministic_baseline_overlap_comparison"]["overlap_period_count"] == 2
+    assert (
+        summary["deterministic_baseline_overlap_comparison"]["comparison_metrics"][
+            "cumulative_return_gap"
+        ]
+        == 0.0
+    )
 
 
 def test_render_model_strategy_report_outputs_key_sections() -> None:
@@ -256,9 +322,11 @@ def test_render_model_strategy_report_outputs_key_sections() -> None:
         backtest_config=backtest_config,
         model_metadata=_model_metadata_fixture(),
         model_backtest_summary=_model_backtest_summary_fixture(),
-        portfolio_returns=_portfolio_returns_fixture(),
-        performance_by_period=_performance_by_period_fixture(),
+        portfolio_returns=_model_portfolio_returns_fixture(),
+        performance_by_period=_model_performance_by_period_fixture(),
+        deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
+        test_predictions=_model_test_predictions_fixture(),
     )
 
     report = render_model_strategy_report(
@@ -269,7 +337,9 @@ def test_render_model_strategy_report_outputs_key_sections() -> None:
 
     assert "# Model Strategy Report" in report
     assert "## Model Diagnostics" in report
+    assert "## Fold Coverage" in report
     assert "## Portfolio Summary" in report
+    assert "## Deterministic Baseline Overlap Comparison" in report
     assert "## Benchmark Comparison" in report
 
 
@@ -325,15 +395,18 @@ def test_build_model_experiment_record_and_append_jsonl() -> None:
         backtest_config=backtest_config,
         model_metadata=_model_metadata_fixture(),
         model_backtest_summary=_model_backtest_summary_fixture(),
-        portfolio_returns=_portfolio_returns_fixture(),
-        performance_by_period=_performance_by_period_fixture(),
+        portfolio_returns=_model_portfolio_returns_fixture(),
+        performance_by_period=_model_performance_by_period_fixture(),
+        deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
         risk_metrics_summary=_risk_metrics_summary_fixture(),
+        test_predictions=_model_test_predictions_fixture(),
     )
 
     record = build_model_experiment_record(
         summary,
         artifacts_written=[
             "outputs/reports/model_strategy_report.md",
+            "outputs/reports/model_comparison_summary.json",
             "outputs/reports/experiment_registry.jsonl",
         ],
     )
@@ -353,4 +426,5 @@ def test_build_model_experiment_record_and_append_jsonl() -> None:
     assert stored[0]["stage"] == "model_evaluation_report"
     assert stored[0]["status"] == "exploratory_completed"
     assert "out_of_sample_evaluation" in stored[0]["result_summary"]
+    assert "deterministic_baseline_overlap_comparison" in stored[0]["result_summary"]
     registry_path.unlink()
