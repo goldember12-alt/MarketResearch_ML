@@ -97,6 +97,25 @@ Required environment variables for live remote fetches:
 - `ALPHAVANTAGE_API_KEY`
 - `SEC_USER_AGENT` or `SEC_CONTACT_EMAIL`
 
+Persistent repo-local credential file for the PowerShell refresh wrapper:
+
+- Edit `config/remote_provider_env.local.ps1`
+- Reference template: `config/remote_provider_env.local.example.ps1`
+- Import helper: `scripts/import_remote_provider_env.ps1`
+
+That local file is gitignored. Fill in:
+
+```powershell
+$env:ALPHAVANTAGE_API_KEY = "your_alpha_vantage_key"
+$env:SEC_CONTACT_EMAIL = "your_email@example.com"
+```
+
+Optional:
+
+```powershell
+$env:SEC_USER_AGENT = "MarketResearch_ML (your_email@example.com)"
+```
+
 Remote fetch config file:
 
 - `config/remote_data.yaml`
@@ -388,13 +407,24 @@ Recommended interpreter:
 .\.venv\Scripts\python.exe -m ...
 ```
 
+One-shot remote refresh helper:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_remote_refresh_and_research_scale.ps1
+```
+
+That helper writes a timestamped run log under `.cache/logs/`, dot-sources `scripts/import_remote_provider_env.ps1`, and expects your persistent local credentials in `config/remote_provider_env.local.ps1`. It also sets `PYTHONDONTWRITEBYTECODE=1` for the duration of the run so it does not create fresh repo-local `__pycache__` folders while executing the fetch-plus-pipeline sequence.
+For these CLI runs, console `INFO` logging now goes to stdout instead of stderr, so long-running PowerShell fetches no longer surface normal progress as `NativeCommandError` noise. The wrapper also records explicit child exit codes and writes a clear error block into the timestamped `.cache/logs/...` file before exiting on failure.
+
 Remote raw-data fetch entrypoint:
 
 ```powershell
+. .\scripts\import_remote_provider_env.ps1
 .\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale
 ```
 
-The command is implemented. Live provider verification still depends on supplying the required environment variables.
+The command is implemented. It now logs a deterministic fetch run id, dataset-stage start/end markers, requested symbol lists, per-symbol start/completion/failure events, Alpha Vantage and SEC pacing sleeps, throttle detection, row/date summaries before writes, written file paths, and a final completed-versus-failed symbol summary. It also skips later Alpha Vantage stages once a daily quota condition is detected, avoids overwriting latest/snapshot raw CSVs with zero-row outputs, and now decodes gzip-compressed SEC responses correctly. Live provider verification still depends on supplying the required environment variables.
+The local-file-first reader also ignores headerless empty non-sample CSVs, so `research_scale` can still fall back to the seeded sample files when an upstream fetch wrote an unusable empty CSV.
 
 ## Verification
 
@@ -435,7 +465,7 @@ Manual verification completed on 2026-03-30:
 
 Current automated status on 2026-03-30:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `70 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `74 passed`
 
 Additional manual verification completed on 2026-03-30:
 
@@ -444,12 +474,24 @@ Additional manual verification completed on 2026-03-30:
 - `.\.venv\Scripts\python.exe -m pytest tests/data/test_data_pipeline.py tests/data/test_remote_fetch.py -q`
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion`
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale`
+- `powershell -NoProfile -Command "[scriptblock]::Create((Get-Content 'scripts\run_remote_refresh_and_research_scale.ps1' -Raw)) | Out-Null; Write-Output 'parsed'"`
 - `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale`
 
 Those reruns confirmed that the new remote-fetch code did not break the seeded or `research_scale` ingestion paths, refreshed the QC and reporting artifacts with the existing raw-file provenance fields, and preserved the canonical model/report outputs in the default `logistic_regression` state after the automated suite.
+
+Additional wrapper failure-path verification completed on 2026-03-31 UTC:
+
+- Running `scripts/run_remote_refresh_and_research_scale.ps1` with `ALPHAVANTAGE_API_KEY`, `SEC_USER_AGENT`, and `SEC_CONTACT_EMAIL` intentionally unset produced `wrapper_exit_code=1` and wrote an explicit error block to `.cache/logs/remote_refresh_research_scale_20260331T035813Z.log` without attempting live provider calls.
+
+Additional automated verification completed on 2026-03-31:
+
+- `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_remote_fetch.py`
+- `.\.venv\Scripts\python.exe -m pytest -q`
+
+Those checks covered the SEC gzip decode fix, Alpha Vantage daily-quota detection helper, and the zero-row write-skip behavior after the live `2026-03-31` quota failure revealed both issues.
 
 Live remote provider calls were not manually exercised on 2026-03-30 because this workspace verification pass did not use credentials.
 

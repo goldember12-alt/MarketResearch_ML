@@ -45,6 +45,7 @@ Thumbs.db
 .env.*
 !.env.example
 secrets/
+config/remote_provider_env.local.ps1
 
 # Project outputs and large generated artifacts
 outputs/

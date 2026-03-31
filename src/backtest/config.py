@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from src.utils.logging_utils import build_stdout_stream_handler
 from src.utils.config import ProjectConfig, load_project_config, repo_root
 
 
@@ -193,7 +194,7 @@ def load_backtest_pipeline_config(
 
 def configure_backtest_logging(config: BacktestPipelineConfig) -> None:
     """Configure process logging for the backtest CLI."""
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = [build_stdout_stream_handler()]
     if config.logging.log_to_file:
         config.logging.log_dir.mkdir(parents=True, exist_ok=True)
         handlers.append(logging.FileHandler(config.logging.log_dir / "backtest_pipeline.log"))

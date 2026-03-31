@@ -279,6 +279,29 @@ def test_research_scale_raw_file_selection_falls_back_to_sample_files() -> None:
         shutil.rmtree(raw_dir.parent, ignore_errors=True)
 
 
+def test_research_scale_ignores_headerless_empty_non_sample_csvs() -> None:
+    """Research-scale mode should ignore unusable empty non-sample CSVs and preserve fallback."""
+    raw_dir = REPO_ROOT / ".tmp" / f"research_scale_empty_non_sample_{uuid4().hex}" / "market"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        (raw_dir / "prices_daily_sample.csv").write_text(
+            "ticker,date,adjusted_close\nAAA,2024-01-31,10.0\n",
+            encoding="utf-8",
+        )
+        (raw_dir / "prices_daily_full.csv").write_text("\n", encoding="utf-8")
+
+        execution = load_project_config(execution_mode="research_scale").execution
+        selected = select_input_files(raw_dir, ("*.csv",), execution=execution)
+        manifest = build_raw_file_selection_manifest(raw_dir, ("*.csv",), execution=execution)
+
+        assert [path.name for path in selected] == ["prices_daily_sample.csv"]
+        assert manifest.selected_source_kind == "seeded_sample_fallback"
+        assert manifest.broader_raw_files_available is False
+        assert manifest.used_seeded_sample_fallback is True
+    finally:
+        shutil.rmtree(raw_dir.parent, ignore_errors=True)
+
+
 def test_read_tabular_files_records_selected_file_provenance_and_observed_coverage() -> None:
     """Loaded raw-file manifests should include per-file metadata and observed coverage."""
     raw_dir = REPO_ROOT / ".tmp" / f"raw_manifest_observed_{uuid4().hex}" / "market"

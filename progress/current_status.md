@@ -18,6 +18,12 @@
   - SEC Company Facts ticker-to-CIK resolution, raw payload capture, and conservative quarterly fundamentals mapping
   - immutable raw snapshot writing plus machine-readable dataset and run manifests under `data/raw/...`
 - `src.run_fetch_remote_raw.py` now provides the documented upstream fetch CLI without changing downstream live-API behavior.
+- `src.run_fetch_remote_raw.py` now also writes fetch-run `INFO` progress to stdout, emits deterministic fetch-run ids plus stage/symbol-level progress logs, records environment-variable presence without exposing secrets, and adds concise write-policy metadata to the remote dataset manifests.
+- `src.run_fetch_remote_raw.py` now also stops later Alpha Vantage stages once a daily quota condition has already been detected in the same run and avoids overwriting latest/snapshot raw files with zero-row stage outputs.
+- `scripts/run_remote_refresh_and_research_scale.ps1` now provides a one-shot credentialed PowerShell wrapper for the remote fetch plus full downstream `research_scale` path, with timestamped logs written under `.cache/logs/`.
+- `scripts/run_remote_refresh_and_research_scale.ps1` now also dot-sources a repo-local credential loader so Alpha Vantage and SEC identity values can be stored persistently in `config/remote_provider_env.local.ps1` instead of being re-exported manually in every PowerShell session.
+- `src.data.io` now ignores headerless empty non-sample CSVs during raw-file discovery so the documented `research_scale` seeded-fallback path still works when an upstream fetch leaves behind unusable empty latest files.
+- `src.data.sec_companyfacts.py` now decodes gzip-compressed SEC responses before JSON parsing, fixing the live `UnicodeDecodeError` observed on 2026-03-31.
 - `src.features` includes config loading, leakage-safe feature engineering, feature QC, and feature missingness summaries.
 - `src.signals` includes:
   - signal-stage config loading
@@ -108,16 +114,23 @@
 - Focused data-pipeline tests were added for:
   - research-scale raw-file selection preference for non-sample files
   - research-scale fallback to sample-tagged raw files when broader local raw coverage is absent
+  - research-scale fallback when headerless empty non-sample CSVs are present
   - per-file raw-file provenance and observed raw-coverage metadata in ingestion manifests
 - Focused remote-fetch tests were added for:
   - remote fetch config loading
   - output naming and manifest path selection
   - dataset manifest writing
+  - stdout-first CLI stream handler selection
+  - fetch frame-summary and aggregated symbol-summary helpers
+  - Alpha Vantage daily-quota detection
+  - zero-row output write skipping
+  - SEC gzip response decoding
   - Alpha Vantage monthly adjusted response parsing
   - Alpha Vantage overview response parsing
   - SEC ticker-to-CIK parsing
   - SEC user-agent resolution from environment variables
   - SEC Company Facts conservative quarterly mapping
+- Pytest cache-provider persistence was disabled in `pyproject.toml` because this OneDrive-backed workspace was repeatedly failing cache writes and scattering `pytest-cache-files-*` fallback directories under the repo root.
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
   - `src.run_data_ingestion --execution-mode research_scale`
@@ -127,7 +140,9 @@
   - `src.run_random_forest`
   - `src.run_model_backtest`
   - `src.run_model_evaluation_report`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `70 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `74 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_remote_fetch.py` passed with `14 passed` on 2026-03-31 after the SEC gzip and Alpha Vantage quota patch.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `77 passed` on 2026-03-31 after the SEC gzip and Alpha Vantage quota patch.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -151,7 +166,16 @@
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --help` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion` completed successfully on 2026-03-30 after the remote-fetch implementation.
+- `powershell -NoProfile -Command "[scriptblock]::Create((Get-Content 'scripts\run_remote_refresh_and_research_scale.ps1' -Raw)) | Out-Null; Write-Output 'parsed'"` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_remote_fetch.py` completed successfully on 2026-03-30 after the fetch logging patch.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_data_pipeline.py tests/data/test_remote_fetch.py` completed successfully on 2026-03-30 after the empty-CSV fallback hardening.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion` completed successfully on 2026-03-30 after the fetch logging patch.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` completed successfully on 2026-03-30 after the empty-CSV fallback hardening restored seeded fallback.
+- Running `scripts/run_remote_refresh_and_research_scale.ps1` with `ALPHAVANTAGE_API_KEY`, `SEC_USER_AGENT`, and `SEC_CONTACT_EMAIL` intentionally unset produced `wrapper_exit_code=1` and wrote an explicit error block to `.cache/logs/remote_refresh_research_scale_20260331T035813Z.log` on 2026-03-31 UTC.
+- `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale` was manually exercised with live credentials on 2026-03-31 and exposed two concrete issues before this patch: Alpha Vantage daily quota exhaustion after `5` overview symbols, and a SEC gzip decode failure before the run manifest could be written.
+- `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --help` completed successfully again on 2026-03-31 after the SEC gzip and Alpha Vantage quota patch.
+- `powershell -NoProfile -Command "[scriptblock]::Create((Get-Content 'scripts\import_remote_provider_env.ps1' -Raw)) | Out-Null; [scriptblock]::Create((Get-Content 'scripts\run_remote_refresh_and_research_scale.ps1' -Raw)) | Out-Null; Write-Output 'parsed'"` completed successfully on 2026-03-31 after the repo-local credential loader was added.
 - `.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_feature_generation --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_signal_generation --execution-mode research_scale` completed successfully on 2026-03-30.
@@ -171,6 +195,10 @@
   - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison, coverage summary, and subperiod content in `result_summary`
 - Research-scale manual verification confirmed that broader local raw files were not present under the documented raw-data directories on 2026-03-30, so the new execution path correctly used seeded-sample fallback and recorded that fact in the QC and reporting artifacts.
 - Live Alpha Vantage and SEC provider calls were not manually exercised on 2026-03-30 because this verification pass did not use API credentials or SEC identity values.
+- Live Alpha Vantage and SEC provider calls were also not exercised during the 2026-03-31 UTC wrapper failure-path check because the environment variables were intentionally unset to verify preflight logging only.
+- A live provider run on 2026-03-31 confirmed that the Alpha Vantage free key can exhaust its daily quota during the overview stage for this configured symbol list, so the patched fetch CLI now skips later Alpha Vantage stages after that condition instead of writing fresh empty latest files.
+- Repo-local `src/` and `tests/` `__pycache__` directories were moved into `.cache/cleanup_archive/20260331T032749Z/python_bytecode/` on 2026-03-30.
+- Legacy root-level `pytest-cache-files-*` directories could not be deleted or moved from the current shell on 2026-03-30 because the workspace returned `Access is denied` for those paths.
 - The refreshed QC artifacts now also confirm the observed seeded raw-file spans used during fallback:
   - market raw sample: `2024-01-02` to `2024-06-28` across `2580` rows
   - benchmark raw sample: `2024-01-02` to `2024-06-28` across `258` rows
@@ -186,6 +214,7 @@
 
 - The raw-data path remains local-file-first downstream even though the upstream remote fetch layer is now implemented.
 - Live Alpha Vantage and SEC fetches were not exercised during the 2026-03-30 verification pass, so provider behavior is test-covered but not credential-verified in this workspace state.
+- The historical root-level `pytest-cache-files-*` directories appear to have been created by pytest cache-provider fallback behavior after repeated cache-path access failures in this OneDrive-backed workspace.
 - Fundamentals are not point-in-time safe. The current upstream lag rules are conservative heuristics, not a complete point-in-time solution.
 - Fundamentals-derived features and signals therefore still carry revised-history bias risk.
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.

@@ -76,6 +76,13 @@ def _detect_date_column_observations(frame: pd.DataFrame) -> list[dict[str, Any]
     return observations
 
 
+def _is_readable_tabular_candidate(path: Path) -> bool:
+    """Return True when a discovered raw file is likely readable as a tabular input."""
+    if path.suffix.lower() == ".csv" and path.stat().st_size <= 2:
+        return False
+    return True
+
+
 def _build_observed_file_detail(base_detail: dict[str, Any], frame: pd.DataFrame) -> dict[str, Any]:
     """Augment one selected-file detail with observed raw-frame coverage metadata."""
     observed_detail = dict(base_detail)
@@ -127,7 +134,11 @@ def discover_input_files(directory: Path, patterns: tuple[str, ...]) -> tuple[Pa
 
     files: list[Path] = []
     for pattern in patterns:
-        files.extend(path for path in directory.glob(pattern) if path.is_file())
+        files.extend(
+            path
+            for path in directory.glob(pattern)
+            if path.is_file() and _is_readable_tabular_candidate(path)
+        )
 
     unique_files = tuple(sorted(set(files)))
     if not unique_files:

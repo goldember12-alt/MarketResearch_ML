@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from src.utils.logging_utils import build_stdout_stream_handler
 from src.utils.config import ProjectConfig, load_project_config, repo_root
 
 
@@ -400,7 +401,7 @@ def load_model_pipeline_config(
 
 def configure_model_logging(config: ModelPipelineConfig) -> None:
     """Configure process logging for the modeling CLI entrypoints."""
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = [build_stdout_stream_handler()]
     if config.logging.log_to_file:
         config.logging.log_dir.mkdir(parents=True, exist_ok=True)
         handlers.append(logging.FileHandler(config.logging.log_dir / "model_pipeline.log"))

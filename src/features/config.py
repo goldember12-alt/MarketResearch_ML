@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from src.utils.logging_utils import build_stdout_stream_handler
 from src.utils.config import ProjectConfig, load_project_config, repo_root
 
 
@@ -168,7 +169,7 @@ def load_feature_pipeline_config(
 
 def configure_feature_logging(config: FeaturePipelineConfig) -> None:
     """Configure process logging for the feature-generation CLI."""
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    handlers: list[logging.Handler] = [build_stdout_stream_handler()]
     if config.logging.log_to_file:
         config.logging.log_dir.mkdir(parents=True, exist_ok=True)
         handlers.append(logging.FileHandler(config.logging.log_dir / "feature_pipeline.log"))

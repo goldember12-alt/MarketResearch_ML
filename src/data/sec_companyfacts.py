@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import gzip
 import json
+import logging
 import re
 import time
 from dataclasses import dataclass
@@ -69,6 +71,16 @@ class SecCompanyFactsResult:
     notes: list[str]
 
 
+def _frame_date_span(frame: pd.DataFrame, date_column: str) -> tuple[str | None, str | None]:
+    """Return an ISO min/max date span for one fetched frame."""
+    if frame.empty or date_column not in frame.columns:
+        return None, None
+    parsed = pd.to_datetime(frame[date_column], errors="coerce").dropna()
+    if parsed.empty:
+        return None, None
+    return parsed.min().date().isoformat(), parsed.max().date().isoformat()
+
+
 def resolve_sec_user_agent(*, provider: SecProviderConfig, environment: dict[str, str]) -> str:
     """Resolve a SEC-compatible user agent from environment variables only."""
     explicit = environment.get(provider.user_agent_env_var, "").strip()
@@ -99,10 +111,20 @@ def _request_json(
         },
     )
     with urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
-        payload = json.loads(response.read().decode("utf-8"))
+        raw_bytes = response.read()
+        content_encoding = response.headers.get("Content-Encoding")
+        payload = json.loads(_decode_response_bytes(raw_bytes, content_encoding=content_encoding))
     if not isinstance(payload, dict):
         raise SecResponseError("SEC returned a non-mapping JSON payload.")
     return payload
+
+
+def _decode_response_bytes(raw_bytes: bytes, *, content_encoding: str | None) -> str:
+    """Decode SEC response bytes, including gzip-compressed payloads."""
+    normalized_encoding = (content_encoding or "").lower()
+    if "gzip" in normalized_encoding or raw_bytes.startswith(b"\x1f\x8b"):
+        raw_bytes = gzip.decompress(raw_bytes)
+    return raw_bytes.decode("utf-8")
 
 
 def build_ticker_cik_map(payload: dict[str, Any]) -> dict[str, str]:
@@ -346,14 +368,31 @@ def fetch_sec_companyfacts(
     provider: SecProviderConfig,
     user_agent: str,
     metadata: pd.DataFrame | None = None,
+    logger: logging.Logger | None = None,
+    dataset_name: str = "fundamentals_sec_companyfacts",
+    fetch_run_id: str | None = None,
 ) -> SecCompanyFactsResult:
     """Fetch SEC Company Facts payloads and map them into a conservative subset."""
+    if logger is not None:
+        logger.info(
+            "fetch_reference_start run_id=%s provider=sec dataset=%s resource=company_tickers url=%s",
+            fetch_run_id,
+            dataset_name,
+            provider.company_tickers_url,
+        )
     ticker_payload = _request_json(
         url=provider.company_tickers_url,
         timeout_seconds=provider.timeout_seconds,
         user_agent=user_agent,
     )
     ticker_cik_map = build_ticker_cik_map(ticker_payload)
+    if logger is not None:
+        logger.info(
+            "fetch_reference_complete run_id=%s provider=sec dataset=%s resource=company_tickers mapped_ticker_count=%s",
+            fetch_run_id,
+            dataset_name,
+            len(ticker_cik_map),
+        )
     metadata_lookup: dict[str, dict[str, Any]] = {}
     if metadata is not None and not metadata.empty:
         metadata_lookup = (
@@ -371,11 +410,39 @@ def fetch_sec_companyfacts(
 
     for index, ticker in enumerate(tickers):
         if index > 0 and provider.request_pause_seconds > 0:
+            if logger is not None:
+                logger.info(
+                    "fetch_sleep run_id=%s provider=sec dataset=%s seconds=%.2f next_symbol=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    provider.request_pause_seconds,
+                    ticker,
+                )
             time.sleep(provider.request_pause_seconds)
+        symbol_started = time.perf_counter()
+        if logger is not None:
+            logger.info(
+                "fetch_symbol_start run_id=%s provider=sec dataset=%s symbol=%s symbol_index=%s symbol_total=%s",
+                fetch_run_id,
+                dataset_name,
+                ticker,
+                index + 1,
+                len(tickers),
+            )
         cik = ticker_cik_map.get(ticker.upper())
         if cik is None:
             failed_symbols.append(ticker)
             notes.append(f"{ticker}: SEC ticker-to-CIK lookup did not include this symbol.")
+            elapsed_seconds = time.perf_counter() - symbol_started
+            if logger is not None:
+                logger.warning(
+                    "fetch_symbol_failed run_id=%s provider=sec dataset=%s symbol=%s elapsed_seconds=%.3f exception=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    ticker,
+                    elapsed_seconds,
+                    "SEC ticker-to-CIK lookup did not include this symbol.",
+                )
             continue
         try:
             url = provider.company_facts_base_url.format(cik=cik)
@@ -395,16 +462,56 @@ def fetch_sec_companyfacts(
             )
             if not mapped.empty:
                 mapped_frames.append(mapped)
+                min_date, max_date = _frame_date_span(mapped, "report_date")
+                if logger is not None:
+                    logger.info(
+                        "fetch_symbol_complete run_id=%s provider=sec dataset=%s symbol=%s cik=%s elapsed_seconds=%.3f row_count=%s min_date=%s max_date=%s",
+                        fetch_run_id,
+                        dataset_name,
+                        ticker,
+                        cik,
+                        time.perf_counter() - symbol_started,
+                        len(mapped),
+                        min_date,
+                        max_date,
+                    )
+            elif logger is not None:
+                logger.warning(
+                    "fetch_symbol_no_rows run_id=%s provider=sec dataset=%s symbol=%s cik=%s elapsed_seconds=%.3f",
+                    fetch_run_id,
+                    dataset_name,
+                    ticker,
+                    cik,
+                    time.perf_counter() - symbol_started,
+                )
             completed_symbols.append(ticker)
         except Exception as exc:  # noqa: BLE001
             failed_symbols.append(ticker)
             notes.append(f"{ticker}: {exc}")
+            if logger is not None:
+                logger.exception(
+                    "fetch_symbol_failed run_id=%s provider=sec dataset=%s symbol=%s cik=%s elapsed_seconds=%.3f exception=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    ticker,
+                    cik,
+                    time.perf_counter() - symbol_started,
+                    exc,
+                )
 
     combined = (
         pd.concat(mapped_frames, ignore_index=True).sort_values(["ticker", "report_date"])
         if mapped_frames
         else pd.DataFrame()
     )
+    if combined.empty and logger is not None:
+        logger.warning(
+            "fetch_dataset_empty run_id=%s provider=sec dataset=%s completed_symbols=%s failed_symbols=%s",
+            fetch_run_id,
+            dataset_name,
+            completed_symbols,
+            failed_symbols,
+        )
     return SecCompanyFactsResult(
         mapped_fundamentals=combined.reset_index(drop=True),
         raw_payloads=raw_payloads,

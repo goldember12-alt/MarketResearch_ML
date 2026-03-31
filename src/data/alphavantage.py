@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +32,17 @@ class AlphaVantageDatasetResult:
     failed_symbols: list[str]
     notes: list[str]
     throttle_detected: bool
+    daily_quota_detected: bool
+
+
+def _frame_date_span(frame: pd.DataFrame, date_column: str) -> tuple[str | None, str | None]:
+    """Return an ISO min/max date span for one fetched frame."""
+    if frame.empty or date_column not in frame.columns:
+        return None, None
+    parsed = pd.to_datetime(frame[date_column], errors="coerce").dropna()
+    if parsed.empty:
+        return None, None
+    return parsed.min().date().isoformat(), parsed.max().date().isoformat()
 
 
 def _request_json(
@@ -47,6 +59,12 @@ def _request_json(
     if not isinstance(payload, dict):
         raise AlphaVantageResponseError("Alpha Vantage returned a non-mapping JSON payload.")
     return payload
+
+
+def _is_daily_quota_message(message: str) -> bool:
+    """Return True when an Alpha Vantage throttle message indicates daily quota exhaustion."""
+    normalized = message.lower()
+    return "25 requests per day" in normalized or "daily rate limit" in normalized
 
 
 def parse_monthly_adjusted_response(
@@ -154,6 +172,9 @@ def fetch_monthly_adjusted_series(
     identifier_column: str,
     provider: AlphaVantageProviderConfig,
     api_key: str,
+    logger: logging.Logger | None = None,
+    dataset_name: str = "market_prices",
+    fetch_run_id: str | None = None,
 ) -> AlphaVantageDatasetResult:
     """Fetch monthly adjusted price history for a list of symbols."""
     frames: list[pd.DataFrame] = []
@@ -161,10 +182,30 @@ def fetch_monthly_adjusted_series(
     failed_symbols: list[str] = []
     notes: list[str] = []
     throttle_detected = False
+    daily_quota_detected = False
 
     for index, symbol in enumerate(symbols):
         if index > 0 and provider.request_pause_seconds > 0:
+            if logger is not None:
+                logger.info(
+                    "fetch_sleep run_id=%s provider=alphavantage dataset=%s seconds=%.2f next_symbol=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    provider.request_pause_seconds,
+                    symbol,
+                )
             time.sleep(provider.request_pause_seconds)
+        symbol_started = time.perf_counter()
+        if logger is not None:
+            logger.info(
+                "fetch_symbol_start run_id=%s provider=alphavantage dataset=%s symbol=%s symbol_index=%s symbol_total=%s function=%s",
+                fetch_run_id,
+                dataset_name,
+                symbol,
+                index + 1,
+                len(symbols),
+                provider.monthly_adjusted_function,
+            )
         try:
             payload = _request_json(
                 base_url=provider.base_url,
@@ -185,22 +226,66 @@ def fetch_monthly_adjusted_series(
             )
             frames.append(frame)
             completed_symbols.append(symbol)
+            elapsed_seconds = time.perf_counter() - symbol_started
+            min_date, max_date = _frame_date_span(frame, "date")
+            if logger is not None:
+                logger.info(
+                    "fetch_symbol_complete run_id=%s provider=alphavantage dataset=%s symbol=%s elapsed_seconds=%.3f row_count=%s min_date=%s max_date=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    symbol,
+                    elapsed_seconds,
+                    len(frame),
+                    min_date,
+                    max_date,
+                )
         except AlphaVantageThrottleError as exc:
             failed_symbols.append(symbol)
             notes.append(f"{symbol}: {exc}")
             throttle_detected = True
+            daily_quota_detected = _is_daily_quota_message(str(exc))
+            elapsed_seconds = time.perf_counter() - symbol_started
+            if logger is not None:
+                logger.warning(
+                    "fetch_symbol_throttled run_id=%s provider=alphavantage dataset=%s symbol=%s elapsed_seconds=%.3f exception=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    symbol,
+                    elapsed_seconds,
+                    exc,
+                )
             break
         except Exception as exc:  # noqa: BLE001
             failed_symbols.append(symbol)
             notes.append(f"{symbol}: {exc}")
+            elapsed_seconds = time.perf_counter() - symbol_started
+            if logger is not None:
+                logger.exception(
+                    "fetch_symbol_failed run_id=%s provider=alphavantage dataset=%s symbol=%s elapsed_seconds=%.3f exception=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    symbol,
+                    elapsed_seconds,
+                    exc,
+                )
 
     if not frames:
+        if logger is not None:
+            logger.warning(
+                "fetch_dataset_empty run_id=%s provider=alphavantage dataset=%s completed_symbols=%s failed_symbols=%s throttle_detected=%s",
+                fetch_run_id,
+                dataset_name,
+                completed_symbols,
+                failed_symbols,
+                throttle_detected,
+            )
         return AlphaVantageDatasetResult(
             frame=pd.DataFrame(),
             completed_symbols=completed_symbols,
             failed_symbols=failed_symbols,
             notes=notes,
             throttle_detected=throttle_detected,
+            daily_quota_detected=daily_quota_detected,
         )
 
     combined = pd.concat(frames, ignore_index=True).sort_values([identifier_column, "date"])
@@ -210,6 +295,7 @@ def fetch_monthly_adjusted_series(
         failed_symbols=failed_symbols,
         notes=notes,
         throttle_detected=throttle_detected,
+        daily_quota_detected=daily_quota_detected,
     )
 
 
@@ -218,6 +304,9 @@ def fetch_overview_metadata(
     symbols: list[str],
     provider: AlphaVantageProviderConfig,
     api_key: str,
+    logger: logging.Logger | None = None,
+    dataset_name: str = "overview_metadata",
+    fetch_run_id: str | None = None,
 ) -> AlphaVantageDatasetResult:
     """Fetch overview metadata for a list of symbols."""
     rows: list[dict[str, Any]] = []
@@ -225,10 +314,30 @@ def fetch_overview_metadata(
     failed_symbols: list[str] = []
     notes: list[str] = []
     throttle_detected = False
+    daily_quota_detected = False
 
     for index, symbol in enumerate(symbols):
         if index > 0 and provider.request_pause_seconds > 0:
+            if logger is not None:
+                logger.info(
+                    "fetch_sleep run_id=%s provider=alphavantage dataset=%s seconds=%.2f next_symbol=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    provider.request_pause_seconds,
+                    symbol,
+                )
             time.sleep(provider.request_pause_seconds)
+        symbol_started = time.perf_counter()
+        if logger is not None:
+            logger.info(
+                "fetch_symbol_start run_id=%s provider=alphavantage dataset=%s symbol=%s symbol_index=%s symbol_total=%s function=%s",
+                fetch_run_id,
+                dataset_name,
+                symbol,
+                index + 1,
+                len(symbols),
+                provider.overview_function,
+            )
         try:
             payload = _request_json(
                 base_url=provider.base_url,
@@ -241,14 +350,45 @@ def fetch_overview_metadata(
             )
             rows.append(parse_overview_response(payload, symbol=symbol))
             completed_symbols.append(symbol)
+            elapsed_seconds = time.perf_counter() - symbol_started
+            if logger is not None:
+                logger.info(
+                    "fetch_symbol_complete run_id=%s provider=alphavantage dataset=%s symbol=%s elapsed_seconds=%.3f row_count=1 latest_quarter=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    symbol,
+                    elapsed_seconds,
+                    rows[-1].get("latest_quarter"),
+                )
         except AlphaVantageThrottleError as exc:
             failed_symbols.append(symbol)
             notes.append(f"{symbol}: {exc}")
             throttle_detected = True
+            daily_quota_detected = _is_daily_quota_message(str(exc))
+            elapsed_seconds = time.perf_counter() - symbol_started
+            if logger is not None:
+                logger.warning(
+                    "fetch_symbol_throttled run_id=%s provider=alphavantage dataset=%s symbol=%s elapsed_seconds=%.3f exception=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    symbol,
+                    elapsed_seconds,
+                    exc,
+                )
             break
         except Exception as exc:  # noqa: BLE001
             failed_symbols.append(symbol)
             notes.append(f"{symbol}: {exc}")
+            elapsed_seconds = time.perf_counter() - symbol_started
+            if logger is not None:
+                logger.exception(
+                    "fetch_symbol_failed run_id=%s provider=alphavantage dataset=%s symbol=%s elapsed_seconds=%.3f exception=%s",
+                    fetch_run_id,
+                    dataset_name,
+                    symbol,
+                    elapsed_seconds,
+                    exc,
+                )
 
     frame = pd.DataFrame(rows)
     if not frame.empty:
@@ -266,6 +406,15 @@ def fetch_overview_metadata(
         for column in numeric_columns:
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
         frame["latest_quarter"] = pd.to_datetime(frame["latest_quarter"], errors="coerce")
+    elif logger is not None:
+        logger.warning(
+            "fetch_dataset_empty run_id=%s provider=alphavantage dataset=%s completed_symbols=%s failed_symbols=%s throttle_detected=%s",
+            fetch_run_id,
+            dataset_name,
+            completed_symbols,
+            failed_symbols,
+            throttle_detected,
+        )
 
     return AlphaVantageDatasetResult(
         frame=frame.reset_index(drop=True),
@@ -273,4 +422,5 @@ def fetch_overview_metadata(
         failed_symbols=failed_symbols,
         notes=notes,
         throttle_detected=throttle_detected,
+        daily_quota_detected=daily_quota_detected,
     )

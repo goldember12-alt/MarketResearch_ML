@@ -4,23 +4,37 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
+import gzip
 from pathlib import Path
 from uuid import uuid4
 
+import pandas as pd
 import pytest
 
-from src.data.alphavantage import parse_monthly_adjusted_response, parse_overview_response
-from src.data.remote_config import load_remote_raw_fetch_config
+from src.data.alphavantage import (
+    _is_daily_quota_message,
+    parse_monthly_adjusted_response,
+    parse_overview_response,
+)
+from src.data.remote_config import DatasetOutputConfig, load_remote_raw_fetch_config
 from src.data.remote_io import (
     build_dataset_manifest,
     resolve_dataset_output_targets,
     write_dataset_manifest,
 )
 from src.data.sec_companyfacts import (
+    _decode_response_bytes,
     build_ticker_cik_map,
     map_companyfacts_to_quarterly_fundamentals,
     resolve_sec_user_agent,
 )
+from src.run_fetch_remote_raw import (
+    _aggregate_symbol_outcomes,
+    _summarize_frame,
+    _write_dataset_outputs,
+)
+from src.utils.logging_utils import build_stdout_stream_handler
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -95,6 +109,88 @@ def test_build_dataset_manifest_and_write_json_roundtrip() -> None:
         assert loaded["throttle_detected"] is True
     finally:
         shutil.rmtree(manifest_dir, ignore_errors=True)
+
+
+def test_build_stdout_stream_handler_defaults_to_stdout() -> None:
+    """CLI stream handlers should default to stdout for PowerShell-friendly INFO logs."""
+    handler = build_stdout_stream_handler()
+
+    assert handler.stream is sys.stdout
+
+
+def test_summarize_frame_reports_row_count_and_iso_date_span() -> None:
+    """Frame summaries should expose deterministic row-count and date-span diagnostics."""
+    frame = pd.DataFrame(
+        {
+            "date": ["2026-01-31", "2026-03-31", "2026-02-28"],
+            "value": [1, 2, 3],
+        }
+    )
+
+    summary = _summarize_frame(frame, "date")
+
+    assert summary == {
+        "row_count": 3,
+        "min_date": "2026-01-31",
+        "max_date": "2026-03-31",
+    }
+
+
+def test_aggregate_symbol_outcomes_merges_unique_completed_and_failed_symbols() -> None:
+    """Run summaries should deduplicate symbol outcomes across stage manifests."""
+    outcomes = _aggregate_symbol_outcomes(
+        [
+            {"completed_symbols": ["AAPL", "MSFT"], "failed_symbols": ["TSLA"]},
+            {"completed_symbols": ["SPY", "AAPL"], "failed_symbols": ["QQQ", "TSLA"]},
+        ]
+    )
+
+    assert outcomes == {
+        "completed_symbols": ["AAPL", "MSFT", "SPY"],
+        "failed_symbols": ["QQQ", "TSLA"],
+    }
+
+
+def test_is_daily_quota_message_detects_alpha_vantage_daily_limit_text() -> None:
+    """Daily Alpha Vantage quota messages should be distinguishable from generic throttles."""
+    assert _is_daily_quota_message("standard API rate limit is 25 requests per day.") is True
+    assert _is_daily_quota_message("Please consider spreading out your free API requests.") is False
+
+
+def test_decode_response_bytes_handles_gzip_sec_payloads() -> None:
+    """SEC response decoding should transparently handle gzip-compressed bodies."""
+    compressed = gzip.compress(b'{"ok": true}')
+
+    decoded = _decode_response_bytes(compressed, content_encoding="gzip")
+
+    assert decoded == '{"ok": true}'
+
+
+def test_write_dataset_outputs_skips_empty_frames() -> None:
+    """Zero-row fetch stages should not overwrite latest or snapshot raw files."""
+    config = load_remote_raw_fetch_config(execution_mode="research_scale")
+    temp_base_dir = REPO_ROOT / ".tmp" / f"remote_empty_outputs_{uuid4().hex}"
+    output_config = DatasetOutputConfig(
+        base_dir=temp_base_dir,
+        latest_filename="prices_monthly_alphavantage.csv",
+        latest_manifest_filename="prices_monthly_alphavantage_manifest.json",
+        snapshot_subdir=temp_base_dir / "snapshots",
+        manifest_subdir=temp_base_dir / "manifests",
+        snapshot_filename_template="prices_monthly_alphavantage_{timestamp}.csv",
+    )
+    try:
+        written_paths = _write_dataset_outputs(
+            frame=pd.DataFrame(),
+            output_config=output_config,
+            config=config,
+            timestamp_token="20260331T120000Z",
+        )
+
+        assert written_paths == []
+        assert not (temp_base_dir / "prices_monthly_alphavantage.csv").exists()
+        assert not (temp_base_dir / "snapshots" / "prices_monthly_alphavantage_20260331T120000Z.csv").exists()
+    finally:
+        shutil.rmtree(temp_base_dir, ignore_errors=True)
 
 
 def test_parse_monthly_adjusted_response_returns_sorted_numeric_frame() -> None:
