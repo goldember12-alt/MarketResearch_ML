@@ -1,0 +1,70 @@
+remote_acquisition:
+  default_provider: "alphavantage_sec"
+  latest_file_overwrite_policy: "overwrite"
+  write_latest_files: true
+  write_snapshot_copies: true
+  write_dataset_manifests: true
+  snapshot_timestamp_format: "%Y%m%dT%H%M%SZ"
+
+dataset_toggles:
+  market_prices: true
+  benchmark_prices: true
+  overview_metadata: true
+  sec_companyfacts: true
+
+providers:
+  alphavantage:
+    enabled: true
+    base_url: "https://www.alphavantage.co/query"
+    monthly_adjusted_function: "TIME_SERIES_MONTHLY_ADJUSTED"
+    overview_function: "OVERVIEW"
+    datatype: "json"
+    outputsize: "full"
+    api_key_env_var: "ALPHAVANTAGE_API_KEY"
+    request_pause_seconds: 12.0
+    timeout_seconds: 30.0
+  sec:
+    enabled: true
+    company_tickers_url: "https://www.sec.gov/files/company_tickers.json"
+    company_facts_base_url: "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
+    user_agent_env_var: "SEC_USER_AGENT"
+    contact_email_env_var: "SEC_CONTACT_EMAIL"
+    app_name: "MarketResearch_ML"
+    request_pause_seconds: 0.2
+    timeout_seconds: 30.0
+
+outputs:
+  market:
+    latest_filename: "prices_monthly_alphavantage.csv"
+    latest_manifest_filename: "prices_monthly_alphavantage_manifest.json"
+    snapshot_subdir: "snapshots"
+    manifest_subdir: "manifests"
+    snapshot_filename_template: "prices_monthly_alphavantage_{timestamp}.csv"
+  benchmarks:
+    latest_filename: "benchmarks_monthly_alphavantage.csv"
+    latest_manifest_filename: "benchmarks_monthly_alphavantage_manifest.json"
+    snapshot_subdir: "snapshots"
+    manifest_subdir: "manifests"
+    snapshot_filename_template: "benchmarks_monthly_alphavantage_{timestamp}.csv"
+  overview:
+    relative_dir: "metadata"
+    latest_filename: "security_metadata_alphavantage_overview.csv"
+    latest_manifest_filename: "security_metadata_alphavantage_overview_manifest.json"
+    snapshot_subdir: "snapshots"
+    manifest_subdir: "manifests"
+    snapshot_filename_template: "security_metadata_alphavantage_overview_{timestamp}.csv"
+  fundamentals:
+    latest_filename: "fundamentals_quarterly_sec_companyfacts.parquet"
+    latest_manifest_filename: "fundamentals_quarterly_sec_companyfacts_manifest.json"
+    snapshot_subdir: "snapshots"
+    manifest_subdir: "manifests"
+    snapshot_filename_template: "fundamentals_quarterly_sec_companyfacts_{timestamp}.parquet"
+  sec_companyfacts_raw:
+    relative_dir: "sec_companyfacts"
+    snapshot_subdir: "raw"
+    manifest_subdir: "manifests"
+    snapshot_filename_template: "companyfacts_{symbol}_{timestamp}.json"
+    latest_manifest_filename: "sec_companyfacts_raw_manifest.json"
+  run_manifest:
+    relative_dir: "manifests"
+    filename_template: "remote_fetch_alphavantage_sec_{timestamp}.json"

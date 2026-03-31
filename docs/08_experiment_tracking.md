@@ -47,6 +47,10 @@ The implemented writers append a new JSON object line for every successful `src.
 - model-aware reporting records also store deterministic-vs-model overlap comparison metrics keyed only on shared realized dates
 - model-aware reporting records now also store overlap-window subperiod and regime diagnostics, cross-stage coverage summaries, and evidence-tier metadata in `result_summary`
 
+Planned acquisition-stage tracking:
+
+- the implemented remote raw-data fetch stage records provider, fetch timestamp, requested universe, benchmark scope, raw file outputs, and throttle or partial-fetch conditions in machine-readable manifests even though those fetch runs are not appended to the experiment registry
+
 ## Tracking Rules
 
 - Log every meaningful run that produces artifacts or is used for interpretation.
@@ -54,3 +58,4 @@ The implemented writers append a new JSON object line for every successful `src.
 - Mark runs as exploratory versus benchmark-grade.
 - Do not claim a canonical benchmark result unless the run is actually logged and the supporting artifacts exist.
 - If config hashing or versioning is added later, include it in the record.
+- Remote acquisition provenance should be durable enough that later experiment records can identify exactly which Alpha Vantage and SEC raw snapshots fed a given research run.

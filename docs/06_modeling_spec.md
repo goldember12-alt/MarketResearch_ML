@@ -11,6 +11,10 @@ The implemented baseline modeling stage now supports both:
 
 The model-driven backtest consumes only the aggregated out-of-sample prediction artifact and remains exploratory because the current local sample history is still short. The repo now also supports a `research_scale` execution mode so the same modeling path can be rerun on broader local raw coverage when those files are present.
 
+Planned acquisition dependency:
+
+- the implemented Alpha Vantage + SEC remote raw-data layer should enlarge the eligible modeling history once credentialed fetches are run, without changing the chronology-safe modeling contract
+
 ## Implemented Baseline Runners
 
 - deterministic score baseline comparison context from `outputs/signals/signal_rankings.parquet` when available

@@ -38,6 +38,10 @@ The first implementation objective is not full ML modeling. It is a deterministi
 - run a benchmark-aware monthly backtest
 - write evaluation-ready output artifacts
 
+The next adjacent objective after the currently implemented baseline is:
+
+- maintain the implemented remote raw-data acquisition layer that populates the local raw-data contract from Alpha Vantage and SEC sources without changing downstream stage boundaries
+
 ## Success Criteria For The Current Build Phase
 
 The scaffold phase is successful when:
@@ -56,9 +60,11 @@ The scaffold phase is successful when:
 - no deep learning models
 - no undocumented manual data patches
 - no silent schema or methodology drift
+- no direct dependency of downstream research stages on live vendor calls at runtime
 
 ## Known Scope Boundaries
 
 - Fundamentals may not be point-in-time safe initially; that risk must be documented until a point-in-time source is available.
 - The initial universe is a seeded research preset, not a final production universe definition.
 - The first implementation milestone prioritizes data contracts and deterministic baselines before any ML comparison.
+- The implemented remote acquisition layer preserves the existing raw-file-first contract by writing immutable raw extracts locally before ingestion begins.

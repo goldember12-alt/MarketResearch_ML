@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with structured coverage diagnostics are implemented. The next milestone is longer-history robustness evaluation on broader local raw coverage.
+The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, overlap-aware model-aware reporting with structured coverage diagnostics, and the first upstream Alpha Vantage + SEC remote raw-data acquisition layer are implemented. The next milestone is a first credentialed longer-history refresh and downstream rerun on remote-sourced broader local raw coverage.
 
 ## Phase 1: Scaffold And Contract Alignment
 
@@ -128,6 +128,34 @@ Remaining work inside this phase:
 
 - richer benchmark-relative attribution
 - materially longer-history overlap comparison once broader local raw coverage is added
+
+## Phase 6A: Remote Raw-Data Acquisition
+
+Status:
+
+- implemented initial milestone
+
+Target deliverables:
+
+- `config/remote_data.yaml` for provider credentials, fetch settings, overwrite policy, and output naming driven by environment variables
+- Alpha Vantage market and benchmark fetchers that write latest non-sample raw files plus immutable snapshots under `data/raw/market` and `data/raw/benchmarks`
+- SEC EDGAR / Company Facts fetcher that writes latest non-sample mapped fundamentals plus immutable raw JSON payload snapshots under `data/raw/fundamentals`
+- Alpha Vantage overview-style metadata fetch for sector and industry classification support under `data/raw/fundamentals/metadata`
+- provider/fetch manifests capturing request scope, fetch timestamps, rate-limit behavior, written raw files, and partial-failure conditions
+- runnable `src.run_fetch_remote_raw`
+
+Guardrails for this phase:
+
+- preserve the existing local-file-first downstream architecture
+- do not let downstream ingestion, feature, backtest, modeling, or reporting stages call live providers directly
+- keep seeded verification files and seeded execution mode intact
+- document all provider limitations and point-in-time caveats explicitly
+
+Remaining work inside this phase:
+
+- run the fetch layer with real credentials and inspect the resulting manifests for throttle or partial-failure conditions
+- rerun the full `research_scale` downstream path on broader fetched local coverage
+- extend the SEC mapping coverage where canonical fields remain intentionally unmapped
 
 ## Phase 7: Modeling Baselines
 

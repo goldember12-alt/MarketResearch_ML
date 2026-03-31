@@ -4,7 +4,7 @@ This repository is a reproducible market research and portfolio simulation frame
 
 ## Current Status
 
-The deterministic baseline workflow is now implemented through evaluation reporting, and the modeling path now extends through multi-window out-of-sample evaluation, an aggregated model-driven backtest, and a mode-aware longer-history research execution path:
+The deterministic baseline workflow is implemented through evaluation reporting, and the modeling path extends through multi-window out-of-sample evaluation, an aggregated model-driven backtest, and a mode-aware longer-history research execution path. The first remote raw-data acquisition layer is now also implemented upstream of the existing ingestion contract:
 
 - `src.data` ingests local raw market, benchmark, and fundamentals files and assembles the canonical monthly panel
 - `src.features` generates leakage-safe monthly features from that panel
@@ -14,6 +14,7 @@ The deterministic baseline workflow is now implemented through evaluation report
 - `src.reporting` writes human-readable strategy reports, a top-level run coverage summary artifact, a model comparison summary artifact, and experiment-registry records
 - `src.models` builds leakage-safe labels, fixed or expanding chronological folds, fold-local train-only preprocessing, baseline classifiers, model metadata artifacts, aggregated out-of-sample model score rankings, and model-driven backtest outputs
 - `src.run_model_evaluation_report` now writes a model-aware exploratory report from the current canonical model artifacts
+- `src.run_fetch_remote_raw` now fetches Alpha Vantage monthly adjusted price history plus overview metadata and SEC Company Facts inputs into immutable local raw snapshots and machine-readable manifests without changing downstream live-API behavior
 
 No benchmark-quality research conclusion, live-trading claim, or out-of-sample ML claim is included.
 
@@ -49,6 +50,56 @@ Execution modes:
 
 - default `seeded` mode reads only the packaged sample raw files and preserves the current verification path
 - optional `research_scale` mode prefers broader non-sample local raw files under the same raw-data directories and falls back to the packaged sample files when broader coverage is absent
+
+## Implemented Remote Acquisition Layer
+
+The codebase now includes a first upstream remote fetch layer that preserves the local-file-first downstream contract.
+
+Implemented source split:
+
+- Alpha Vantage for security and benchmark price history
+- Alpha Vantage `OVERVIEW`-style metadata for sector and industry classification when needed
+- SEC EDGAR / Company Facts for filing-based fundamentals
+
+Implemented architectural rule:
+
+- remote fetchers write latest non-sample raw `csv` or `parquet` files plus immutable snapshot copies and dataset manifests under the existing `data/raw/...` directories
+- the current `src.run_data_ingestion` and downstream stages continue to read only from local raw files
+- no downstream stage should depend directly on live API calls
+
+Implemented first-scope behavior as of 2026-03-30:
+
+- Alpha Vantage supports free API keys, but the free tier is best treated as a bootstrap path for a small universe and low-frequency refreshes
+- SEC EDGAR data are publicly accessible, but fetchers must identify themselves properly and respect SEC fair-access expectations
+- the implemented fetchers prefer Alpha Vantage monthly adjusted series over premium-only daily-adjusted full-history endpoints because the repo ultimately standardizes to monthly decision frequency
+- the implemented SEC mapping is intentionally conservative and leaves many canonical valuation fields unmapped rather than faking completeness
+- sector and industry enrichment may come from Alpha Vantage overview snapshots when SEC Company Facts do not provide those classifications directly
+
+Implemented remote raw-data artifacts:
+
+- `data/raw/market/prices_monthly_alphavantage.csv`
+- `data/raw/market/snapshots/`
+- `data/raw/market/manifests/prices_monthly_alphavantage_manifest.json`
+- `data/raw/benchmarks/benchmarks_monthly_alphavantage.csv`
+- `data/raw/benchmarks/snapshots/`
+- `data/raw/benchmarks/manifests/benchmarks_monthly_alphavantage_manifest.json`
+- `data/raw/fundamentals/fundamentals_quarterly_sec_companyfacts.parquet`
+- `data/raw/fundamentals/snapshots/`
+- `data/raw/fundamentals/manifests/fundamentals_quarterly_sec_companyfacts_manifest.json`
+- `data/raw/fundamentals/metadata/security_metadata_alphavantage_overview.csv`
+- `data/raw/fundamentals/metadata/snapshots/`
+- `data/raw/fundamentals/sec_companyfacts/raw/`
+- `data/raw/fundamentals/sec_companyfacts/manifests/sec_companyfacts_raw_manifest.json`
+- `data/raw/manifests/remote_fetch_alphavantage_sec_<timestamp>.json`
+
+Required environment variables for live remote fetches:
+
+- `ALPHAVANTAGE_API_KEY`
+- `SEC_USER_AGENT` or `SEC_CONTACT_EMAIL`
+
+Remote fetch config file:
+
+- `config/remote_data.yaml`
 
 ## Implemented Outputs
 
@@ -123,6 +174,7 @@ Implemented stage config files:
 
 - `config/universe.yaml`
 - `config/data.yaml`
+- `config/remote_data.yaml`
 - `config/features.yaml`
 - `config/signals.yaml`
 - `config/backtest.yaml`
@@ -178,6 +230,7 @@ Evaluation and reporting rules:
 - segment evidence is now classified deterministically as `insufficient_segment_history`, `descriptive_segment_evidence`, or `broader_coverage_exploratory_evidence` using thresholds from `config/evaluation.yaml`
 - bias caveats are written directly into the strategy report
 - meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
+- once remote acquisition is implemented, reporting should distinguish seeded local fixtures from Alpha Vantage / SEC sourced research runs through raw-data provenance manifests rather than narrative guesswork
 
 Modeling-stage rules:
 
@@ -213,6 +266,10 @@ Model-aware reporting rules:
 Important caveat:
 
 - Point-in-time-safe fundamentals are still not solved. Lagged fundamentals and fundamentals-derived signals therefore still carry revised-history bias risk.
+
+Planned remote-acquisition caveat:
+
+- SEC Company Facts can materially improve auditability relative to opaque revised vendor snapshots, but the first remote implementation will still require careful mapping from filing facts into the repo's canonical fundamentals schema and should not be treated as fully point-in-time safe without explicit filing-date logic and release-timing controls.
 
 ## CLI Entrypoints
 
@@ -331,6 +388,14 @@ Recommended interpreter:
 .\.venv\Scripts\python.exe -m ...
 ```
 
+Remote raw-data fetch entrypoint:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale
+```
+
+The command is implemented. Live provider verification still depends on supplying the required environment variables.
+
 ## Verification
 
 Automated verification:
@@ -370,18 +435,24 @@ Manual verification completed on 2026-03-30:
 
 Current automated status on 2026-03-30:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `62 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `70 passed`
 
 Additional manual verification completed on 2026-03-30:
 
+- `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --help`
+- `.\.venv\Scripts\python.exe -m pytest tests/data/test_remote_fetch.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/data/test_data_pipeline.py tests/data/test_remote_fetch.py -q`
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion`
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale`
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale`
 
-Those reruns refreshed the QC and reporting artifacts with the new raw-file provenance fields and restored the canonical model/report outputs to the default `logistic_regression` state after the automated suite.
+Those reruns confirmed that the new remote-fetch code did not break the seeded or `research_scale` ingestion paths, refreshed the QC and reporting artifacts with the existing raw-file provenance fields, and preserved the canonical model/report outputs in the default `logistic_regression` state after the automated suite.
+
+Live remote provider calls were not manually exercised on 2026-03-30 because this workspace verification pass did not use credentials.
 
 ## Best Next Step
 
-Extend the realized history so the new overlap-aware regime and subperiod diagnostics can be evaluated over materially longer windows and support stronger attribution.
+Run the first credentialed `src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale` fetch, inspect the written raw manifests for throttle or partial-failure conditions, and then rerun the full `research_scale` downstream path on the fetched broader local coverage.

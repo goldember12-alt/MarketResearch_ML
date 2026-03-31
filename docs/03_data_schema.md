@@ -31,6 +31,13 @@ Execution-mode rule:
 - dataset QC JSON outputs record the raw-file selection manifest so the chosen raw coverage is auditable
 - raw-file manifests now include per-file filesystem metadata plus observed raw row counts and raw date-column coverage for the selected inputs
 
+Planned remote-acquisition rule:
+
+- implemented remote fetchers write local raw files into these directories rather than bypassing the raw-data contract
+- the initial planned provider split is Alpha Vantage for market and benchmark history plus SEC EDGAR / Company Facts for filing-based fundamentals
+- Alpha Vantage overview-style metadata may also be used to populate sector and industry classification fields when the SEC source does not provide them directly
+- provider provenance, fetch timestamp, request scope, source endpoint metadata, output files, and partial-failure / throttle conditions are preserved in raw manifests or adjacent metadata files by the implemented remote layer
+
 ## Standardization Rules
 
 ### Monthly Date Convention
@@ -71,6 +78,10 @@ Execution-mode rule:
 Important caveat:
 
 - This lag rule reduces obvious look-ahead risk, but it is not a true point-in-time solution. Revised-history bias remains possible.
+
+Planned remote-source caveat:
+
+- SEC filing facts may improve transparency of the upstream source, but the first remote implementation should still treat mapped fundamentals as potentially revised historical data until explicit release-timing logic is added.
 
 ## Canonical Artifacts
 
@@ -751,3 +762,4 @@ Model QC currently lives inside `outputs/models/model_metadata.json` and include
 
 - All schema changes require synchronized updates to code, tests, docs, and progress files.
 - Do not treat lagged fundamentals or fundamentals-derived signals as proof of point-in-time safety.
+- Do not let a future remote acquisition layer silently change the raw-data directory contract or bypass immutable local raw snapshots.

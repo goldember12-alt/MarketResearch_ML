@@ -24,6 +24,7 @@ Execution-mode note:
 
 - the seeded verification path remains the default
 - the optional `research_scale` execution mode is designed for the same backtest logic on longer local raw histories when those files are available upstream
+- the implemented Alpha Vantage + SEC remote acquisition layer should only increase upstream raw coverage; it must not change the implemented backtest contract
 
 ## Inputs
 

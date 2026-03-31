@@ -2,7 +2,7 @@
 
 ## Current Milestone
 
-- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, and overlap-aware model-aware reporting with structured coverage diagnostics are implemented for the local-file-first workflow. The repo now also has a config-driven `research_scale` execution path that prefers broader local raw files and degrades gracefully to the seeded sample files when broader history is absent.
+- Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, overlap-aware model-aware reporting with structured coverage diagnostics, and the first Alpha Vantage + SEC remote raw-data acquisition layer are implemented for the local-file-first workflow. The repo still preserves the seeded verification path and the config-driven `research_scale` preference for broader non-sample local raw files.
 
 ## What Is Completed
 
@@ -12,6 +12,12 @@
   - `research_scale` raw-file selection that prefers non-sample local files and records sample fallback explicitly
   - raw-file selection manifests embedded in dataset QC JSON outputs
   - per-file filesystem metadata plus observed raw row/date coverage inside those manifests
+- `src.data` now also includes upstream remote-acquisition modules for:
+  - Alpha Vantage monthly adjusted market and benchmark history fetches
+  - Alpha Vantage overview metadata fetches for sector and industry enrichment
+  - SEC Company Facts ticker-to-CIK resolution, raw payload capture, and conservative quarterly fundamentals mapping
+  - immutable raw snapshot writing plus machine-readable dataset and run manifests under `data/raw/...`
+- `src.run_fetch_remote_raw.py` now provides the documented upstream fetch CLI without changing downstream live-API behavior.
 - `src.features` includes config loading, leakage-safe feature engineering, feature QC, and feature missingness summaries.
 - `src.signals` includes:
   - signal-stage config loading
@@ -103,6 +109,15 @@
   - research-scale raw-file selection preference for non-sample files
   - research-scale fallback to sample-tagged raw files when broader local raw coverage is absent
   - per-file raw-file provenance and observed raw-coverage metadata in ingestion manifests
+- Focused remote-fetch tests were added for:
+  - remote fetch config loading
+  - output naming and manifest path selection
+  - dataset manifest writing
+  - Alpha Vantage monthly adjusted response parsing
+  - Alpha Vantage overview response parsing
+  - SEC ticker-to-CIK parsing
+  - SEC user-agent resolution from environment variables
+  - SEC Company Facts conservative quarterly mapping
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
   - `src.run_data_ingestion --execution-mode research_scale`
@@ -112,7 +127,7 @@
   - `src.run_random_forest`
   - `src.run_model_backtest`
   - `src.run_model_evaluation_report`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `62 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `70 passed` on 2026-03-30.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -134,6 +149,8 @@
   - `model_risk_metrics_summary.csv`: portfolio and benchmark metrics present
   - `model_backtest_summary.json`: model type, split scheme, fold count, prediction splits used, shared backtest metrics, and caveats present
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --help` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion` completed successfully on 2026-03-30 after the remote-fetch implementation.
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_feature_generation --execution-mode research_scale` completed successfully on 2026-03-30.
@@ -153,6 +170,7 @@
   - `model_subperiod_comparison.csv`: overlap segments present for fold, calendar quarter, calendar half-year, calendar year, benchmark-direction, drawdown-state, and volatility-state breakdowns
   - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison, coverage summary, and subperiod content in `result_summary`
 - Research-scale manual verification confirmed that broader local raw files were not present under the documented raw-data directories on 2026-03-30, so the new execution path correctly used seeded-sample fallback and recorded that fact in the QC and reporting artifacts.
+- Live Alpha Vantage and SEC provider calls were not manually exercised on 2026-03-30 because this verification pass did not use API credentials or SEC identity values.
 - The refreshed QC artifacts now also confirm the observed seeded raw-file spans used during fallback:
   - market raw sample: `2024-01-02` to `2024-06-28` across `2580` rows
   - benchmark raw sample: `2024-01-02` to `2024-06-28` across `258` rows
@@ -162,15 +180,17 @@
 
 ## Immediate Next Step
 
-- Add broader non-sample local raw history under the documented raw-data directories and rerun the full `research_scale` path so the new coverage-aware robustness diagnostics can move beyond the current insufficient-history tier.
+- Run the first credentialed `src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale` refresh, inspect the raw manifests for throttle and partial-failure conditions, and then rerun the full downstream `research_scale` path on the fetched broader local raw coverage.
 
 ## Known Risks / Open Issues
 
-- The current raw-data path is local-file-first only. Live or vendor-specific source adapters are not implemented.
+- The raw-data path remains local-file-first downstream even though the upstream remote fetch layer is now implemented.
+- Live Alpha Vantage and SEC fetches were not exercised during the 2026-03-30 verification pass, so provider behavior is test-covered but not credential-verified in this workspace state.
 - Fundamentals are not point-in-time safe. The current upstream lag rules are conservative heuristics, not a complete point-in-time solution.
 - Fundamentals-derived features and signals therefore still carry revised-history bias risk.
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.
-- The new `research_scale` path is implemented and verified, but it cannot produce a genuinely longer-history run until broader local raw files are added.
+- The implemented SEC mapping is intentionally conservative and leaves several canonical valuation fields unmapped rather than backfilling speculative values.
+- The new `research_scale` path is implemented and verified, but it cannot produce a genuinely longer-history run until broader local raw files are actually fetched or added.
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
 - The current model-driven backtest now uses aggregated out-of-sample windows, but realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.

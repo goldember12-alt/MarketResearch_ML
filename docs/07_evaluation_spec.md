@@ -109,6 +109,7 @@ The following remain deferred:
 - Deterministic-vs-model comparisons must be computed only on overlapping realized dates when the model backtest covers fewer months than the deterministic baseline.
 - Segment evidence must be labeled explicitly as `insufficient_segment_history`, `descriptive_segment_evidence`, or `broader_coverage_exploratory_evidence` using the thresholds configured in `config/evaluation.yaml`.
 - The run summary must disclose whether a `research_scale` execution actually used broader local raw files or only sample fallback.
+- Because remote acquisition is now implemented, the run summary should make it clear whether broader coverage came from Alpha Vantage / SEC sourced raw files or from older manually placed local files.
 - Any result using revised historical fundamentals must include that caveat.
 - Lack of benchmark comparison makes a result incomplete.
 - Small-sample annualized metrics are descriptive, not conclusive.

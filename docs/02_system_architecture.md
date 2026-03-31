@@ -53,6 +53,15 @@ Execution-mode contract:
 - when broader local raw files are absent, `research_scale` falls back to the sample-tagged files and records that fallback in the QC/reporting artifacts
 - raw-file manifests now also capture per-file filesystem metadata plus observed raw row and date coverage for each selected input
 
+Planned remote-acquisition extension:
+
+- a new upstream fetch layer should write raw snapshots into these same directories before the current ingestion stage runs
+- the initial planned source split is:
+  - Alpha Vantage for market and benchmark price history
+  - Alpha Vantage overview-style metadata for sector and industry classification when required
+  - SEC EDGAR / Company Facts for filing-based fundamentals
+- the downstream data stage should remain local-file-first even after remote acquisition is added
+
 ### Data Stage
 
 `src.run_data_ingestion` performs:
@@ -65,6 +74,14 @@ Execution-mode contract:
 6. standardize fundamentals, apply a conservative effective lag, and map them onto the monthly calendar
 7. write processed Parquet artifacts and dataset QC summaries
 8. record the raw-file selection manifest inside the dataset QC summaries, including per-file provenance and observed raw coverage, so longer-history runs are auditable
+
+Planned upstream acquisition stage:
+
+1. read provider credentials and fetch settings from environment variables plus config
+2. fetch Alpha Vantage market and benchmark series for the configured universe and benchmark set
+3. fetch SEC filing-derived facts for the configured universe
+4. fetch Alpha Vantage classification metadata when sector and industry fields are needed
+5. write immutable raw snapshots plus provider/fetch manifests under `data/raw/...`
 
 ### Panel Stage
 
@@ -165,6 +182,7 @@ Execution-mode contract:
 | Module | Responsibility |
 | --- | --- |
 | `src.data.*` | ingestion, standardization, panel assembly, QC |
+| `src.run_fetch_remote_raw` plus `src.data.alphavantage` / `src.data.sec_companyfacts` | remote raw-data acquisition from Alpha Vantage and SEC into immutable local snapshots plus latest local non-sample files |
 | `config/execution.yaml` | execution-mode settings for seeded versus research-scale raw-file selection |
 | `config/evaluation.yaml` | segment-evidence thresholds and structured regime/subperiod settings |
 | `src.features.config` | feature-stage config loading and logging setup |
@@ -205,11 +223,12 @@ Execution-mode contract:
 - Coverage reporting should make the selected raw files auditable without requiring readers to inspect the raw directories manually.
 - Train-only numeric model preprocessing is implemented, but feature-generation-stage imputation remains intentionally disabled.
 - Point-in-time-safe fundamentals are not claimed; the current lag rule is a bias control, not a complete solution.
+- Remote acquisition should stop at raw snapshot creation; normalization, lag logic, and research joins belong in the existing ingestion and downstream stages.
 
 ## Immediate Next Boundary
 
 The next critical path is moving from the seeded verification path to materially longer-history research evidence:
 
-- add broader local raw-history coverage under the documented directories
+- run the implemented Alpha Vantage + SEC fetch layer against live credentials so broader non-sample local raw-history coverage can be written under the documented directories
 - rerun the new `research_scale` path on that broader coverage
 - evaluate the richer segment diagnostics over enough overlap history to move beyond the current insufficient-history tier
