@@ -11,6 +11,7 @@
   - default `seeded` raw-file selection
   - `research_scale` raw-file selection that prefers non-sample local files and records sample fallback explicitly
   - raw-file selection manifests embedded in dataset QC JSON outputs
+  - per-file filesystem metadata plus observed raw row/date coverage inside those manifests
 - `src.features` includes config loading, leakage-safe feature engineering, feature QC, and feature missingness summaries.
 - `src.signals` includes:
   - signal-stage config loading
@@ -38,6 +39,7 @@
   - top-level run summary generation
   - overlap-window regime and subperiod diagnostics by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
   - segment evidence-tier labeling for insufficient-history versus broader-coverage exploratory diagnostics
+  - compact raw-dataset provenance summaries inside coverage-audit reporting
   - experiment-registry record creation
   - JSONL append logic for meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs
 - `src.models` includes:
@@ -96,9 +98,11 @@
   - comparison-convention metadata
   - overlap-window subperiod and regime diagnostics
   - evidence-tier classification for short versus longer segment history
+  - compact raw-dataset provenance rendering in coverage audits
 - Focused data-pipeline tests were added for:
   - research-scale raw-file selection preference for non-sample files
   - research-scale fallback to sample-tagged raw files when broader local raw coverage is absent
+  - per-file raw-file provenance and observed raw-coverage metadata in ingestion manifests
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
   - `src.run_data_ingestion --execution-mode research_scale`
@@ -108,7 +112,7 @@
   - `src.run_random_forest`
   - `src.run_model_backtest`
   - `src.run_model_evaluation_report`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `62 passed` on 2026-03-30.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
 
 ## Manual Verification Status
@@ -139,14 +143,20 @@
 - `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` was rerun successfully on 2026-03-30 after the provenance upgrade so the dataset QC summaries now include per-file filesystem metadata plus observed raw row/date coverage.
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale` was rerun successfully on 2026-03-30 so the deterministic reporting artifacts reflect the new raw-dataset provenance summaries.
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale`, `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale`, and `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale` were rerun successfully on 2026-03-30 after the automated suite to restore the canonical model/report outputs to the default `logistic_regression` state.
 - Resulting model-aware reporting artifacts were manually checked:
   - `model_strategy_report.md`: model diagnostics, fold coverage, overlap-aware deterministic comparison, regime/subperiod diagnostics, coverage audit, benchmark comparison, risk controls, caveats, interpretation, and next step present
-  - `run_summary.json`: execution mode, raw-file selection context, stage coverage counts, eligible decision-month counts, overlap-month counts, and evidence-tier metadata present
+  - `run_summary.json`: execution mode, raw-file selection context, compact raw-dataset provenance overviews, stage coverage counts, eligible decision-month counts, overlap-month counts, and evidence-tier metadata present
   - `model_comparison_summary.json`: comparison convention, fold diagnostics, overlap-only deterministic-vs-model metrics, coverage summary, and subperiod diagnostics metadata present
   - `model_subperiod_comparison.csv`: overlap segments present for fold, calendar quarter, calendar half-year, calendar year, benchmark-direction, drawdown-state, and volatility-state breakdowns
   - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison, coverage summary, and subperiod content in `result_summary`
 - Research-scale manual verification confirmed that broader local raw files were not present under the documented raw-data directories on 2026-03-30, so the new execution path correctly used seeded-sample fallback and recorded that fact in the QC and reporting artifacts.
-- `.\.venv\Scripts\python.exe -m src.run_logistic_regression` was rerun successfully on 2026-03-30 after the automated suite to restore the canonical selected-model artifacts to the default `logistic_regression` state before rerunning `src.run_model_backtest` and `src.run_model_evaluation_report`.
+- The refreshed QC artifacts now also confirm the observed seeded raw-file spans used during fallback:
+  - market raw sample: `2024-01-02` to `2024-06-28` across `2580` rows
+  - benchmark raw sample: `2024-01-02` to `2024-06-28` across `258` rows
+  - fundamentals raw sample: `2023-09-30` to `2024-03-31` across `60` rows
 - Previous manual verification for `src.run_backtest` remains valid:
   - the backtest outputs used by reporting and modeling comparison context were present and aligned before the modeling run
 

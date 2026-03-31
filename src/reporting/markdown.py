@@ -19,6 +19,26 @@ def _num(value: Any) -> str:
     return f"{float(value):.3f}"
 
 
+def _format_raw_dataset_overview(dataset_name: str, dataset_overview: dict[str, Any]) -> str:
+    """Render one compact raw-dataset provenance line for markdown reports."""
+    selected_files = dataset_overview.get("selected_file_names", [])
+    observed_date_columns = dataset_overview.get("observed_date_columns", [])
+    selected_files_text = ", ".join(str(name) for name in selected_files) if selected_files else "n/a"
+    observed_date_columns_text = (
+        ", ".join(str(name) for name in observed_date_columns) if observed_date_columns else "n/a"
+    )
+    return (
+        f"Raw dataset provenance `{dataset_name}`: source "
+        f"`{dataset_overview.get('selected_source_kind')}`, files "
+        f"`{dataset_overview.get('selected_file_count')}`, raw rows "
+        f"`{dataset_overview.get('observed_total_row_count')}`, raw date columns "
+        f"`{observed_date_columns_text}`, raw span "
+        f"`{dataset_overview.get('observed_min_date')}` to "
+        f"`{dataset_overview.get('observed_max_date')}`, selected files "
+        f"`{selected_files_text}`"
+    )
+
+
 def _render_fold_diagnostics(fold_diagnostics: dict[str, Any]) -> list[str]:
     """Render the fold-coverage block for the model strategy report."""
     lines = [
@@ -125,6 +145,8 @@ def _render_coverage_summary(coverage_summary: dict[str, Any]) -> list[str]:
         f"- Broader local raw data available: `{raw_data_selection.get('broader_local_raw_available')}`",
         f"- Seeded sample fallback used: `{raw_data_selection.get('seeded_sample_fallback_used')}`",
     ]
+    for dataset_name, dataset_overview in raw_data_selection.get("dataset_overview", {}).items():
+        lines.append("- " + _format_raw_dataset_overview(dataset_name, dataset_overview))
     for stage_name, stage_summary in coverage_summary.get("stages", {}).items():
         lines.append("- " + f"`{stage_name}`: `{stage_summary}`")
     return lines

@@ -141,7 +141,7 @@ Data-stage rules:
 - the equal-weight benchmark is the simple average of available constituent monthly returns, chained from `100.0`
 - fundamentals are mapped with a conservative `2`-month effective lag and `12`-month staleness cap
 - `config/execution.yaml` controls whether raw-file discovery stays on the seeded verification files or prefers broader local non-sample files
-- ingestion QC now records the selected raw-file set, whether broader local raw files were available, and whether research-scale mode had to fall back to the sample files
+- ingestion QC now records the selected raw-file set, per-file filesystem metadata, observed raw row and date coverage, whether broader local raw files were available, and whether research-scale mode had to fall back to the sample files
 
 Feature-stage rules:
 
@@ -174,7 +174,7 @@ Evaluation and reporting rules:
 - benchmark comparisons are carried through into the report and experiment registry
 - model-aware reporting now compares model-driven backtest returns against the deterministic baseline only on overlapping realized dates
 - model-aware reporting now writes configurable regime and subperiod diagnostics from the overlap window by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
-- reports now write `outputs/reports/run_summary.json` with raw-data selection context, stage-level coverage counts, eligible modeling decision-month counts, and deterministic-vs-model overlap-month counts
+- reports now write `outputs/reports/run_summary.json` with raw-data selection context, compact per-dataset raw provenance overviews, stage-level coverage counts, eligible modeling decision-month counts, and deterministic-vs-model overlap-month counts
 - segment evidence is now classified deterministically as `insufficient_segment_history`, `descriptive_segment_evidence`, or `broader_coverage_exploratory_evidence` using thresholds from `config/evaluation.yaml`
 - bias caveats are written directly into the strategy report
 - meaningful evaluation-report runs append one JSONL record to `outputs/reports/experiment_registry.jsonl`
@@ -370,7 +370,17 @@ Manual verification completed on 2026-03-30:
 
 Current automated status on 2026-03-30:
 
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed`
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `62 passed`
+
+Additional manual verification completed on 2026-03-30:
+
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale`
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale`
+
+Those reruns refreshed the QC and reporting artifacts with the new raw-file provenance fields and restored the canonical model/report outputs to the default `logistic_regression` state after the automated suite.
 
 ## Best Next Step
 

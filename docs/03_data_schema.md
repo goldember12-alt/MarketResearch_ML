@@ -29,6 +29,7 @@ Execution-mode rule:
 - `seeded` mode reads only sample-tagged raw files
 - `research_scale` mode prefers broader non-sample local raw files and falls back to the sample-tagged files when broader coverage is absent
 - dataset QC JSON outputs record the raw-file selection manifest so the chosen raw coverage is auditable
+- raw-file manifests now include per-file filesystem metadata plus observed raw row counts and raw date-column coverage for the selected inputs
 
 ## Standardization Rules
 
@@ -412,6 +413,8 @@ Structure:
 - run timestamp, stage, and execution mode
 - date range for the current report-producing stage
 - raw-data selection context including whether broader local raw files were available
+- compact per-dataset raw provenance overviews including selected source kind, selected file names, observed raw row counts, and observed raw date spans
+- full dataset-level raw-file manifests including per-file filesystem metadata and observed raw coverage
 - stage-level coverage counts across data, features, signals, deterministic backtest, modeling eligibility, model out-of-sample predictions, model backtest, and deterministic-vs-model overlap
 - evidence-tier summary keyed to configured minimum descriptive and broader-coverage month thresholds
 - artifacts written and next-step guidance

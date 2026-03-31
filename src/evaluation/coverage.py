@@ -40,8 +40,40 @@ def _aggregate_raw_data_selection(
     )
     return {
         "datasets": raw_selection,
+        "dataset_overview": {
+            dataset_name: _build_raw_dataset_overview(selection)
+            for dataset_name, selection in raw_selection.items()
+        },
         "broader_local_raw_available": broader_local_raw_available,
         "seeded_sample_fallback_used": seeded_sample_fallback_used,
+    }
+
+
+def _build_raw_dataset_overview(selection: dict[str, Any]) -> dict[str, Any]:
+    """Build a compact raw-source overview for one ingestion-stage dataset."""
+    selected_file_details = selection.get("selected_file_details", [])
+    return {
+        "selected_source_kind": selection.get("selected_source_kind"),
+        "selected_file_count": int(selection.get("selected_file_count", 0) or 0),
+        "selected_file_names": [
+            str(detail.get("file_name"))
+            for detail in selected_file_details
+            if detail.get("file_name") is not None
+        ],
+        "available_sample_file_count": int(
+            selection.get("available_sample_file_count", 0) or 0
+        ),
+        "available_non_sample_file_count": int(
+            selection.get("available_non_sample_file_count", 0) or 0
+        ),
+        "broader_raw_files_available": bool(selection.get("broader_raw_files_available")),
+        "used_seeded_sample_fallback": bool(selection.get("used_seeded_sample_fallback")),
+        "observed_total_row_count": int(selection.get("observed_total_row_count", 0) or 0),
+        "observed_date_columns": [
+            str(column) for column in selection.get("observed_date_columns", [])
+        ],
+        "observed_min_date": selection.get("observed_min_date"),
+        "observed_max_date": selection.get("observed_max_date"),
     }
 
 

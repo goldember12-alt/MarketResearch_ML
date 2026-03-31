@@ -255,6 +255,16 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
                 "selected_source_kind": "seeded_sample_fallback",
                 "broader_raw_files_available": False,
                 "used_seeded_sample_fallback": True,
+                "selected_file_count": 1,
+                "selected_file_details": [
+                    {
+                        "file_name": "prices_daily_sample.csv",
+                    }
+                ],
+                "observed_total_row_count": 120,
+                "observed_date_columns": ["date"],
+                "observed_min_date": "2024-01-02",
+                "observed_max_date": "2024-03-29",
             },
         },
         fundamentals_qc_summary={
@@ -268,6 +278,16 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
                 "selected_source_kind": "seeded_sample_fallback",
                 "broader_raw_files_available": False,
                 "used_seeded_sample_fallback": True,
+                "selected_file_count": 1,
+                "selected_file_details": [
+                    {
+                        "file_name": "fundamentals_quarterly_sample.csv",
+                    }
+                ],
+                "observed_total_row_count": 60,
+                "observed_date_columns": ["report_date"],
+                "observed_min_date": "2023-09-30",
+                "observed_max_date": "2024-03-31",
             },
         },
         benchmarks_qc_summary={
@@ -281,6 +301,16 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
                 "selected_source_kind": "seeded_sample_fallback",
                 "broader_raw_files_available": False,
                 "used_seeded_sample_fallback": True,
+                "selected_file_count": 1,
+                "selected_file_details": [
+                    {
+                        "file_name": "benchmarks_daily_sample.csv",
+                    }
+                ],
+                "observed_total_row_count": 45,
+                "observed_date_columns": ["date"],
+                "observed_min_date": "2024-01-02",
+                "observed_max_date": "2024-03-29",
             },
         },
         panel_qc_summary={
@@ -365,6 +395,12 @@ def test_build_evaluation_summary_includes_benchmark_comparison() -> None:
     assert len(summary["feature_set"]) >= 1
     assert len(summary["benchmark_comparison"]) == 3
     assert summary["coverage_summary"]["raw_data_selection"]["seeded_sample_fallback_used"] is True
+    assert (
+        summary["coverage_summary"]["raw_data_selection"]["dataset_overview"]["prices_monthly"][
+            "observed_total_row_count"
+        ]
+        == 120
+    )
     assert len(summary["bias_caveats"]) >= 1
 
 
@@ -393,6 +429,8 @@ def test_render_strategy_report_outputs_key_sections() -> None:
     assert "# Strategy Report" in report
     assert "## Portfolio Summary" in report
     assert "## Coverage Audit" in report
+    assert "Raw dataset provenance `prices_monthly`" in report
+    assert "prices_daily_sample.csv" in report
     assert "## Evidence Context" in report
     assert "## Benchmark Comparison" in report
     assert "## Bias Caveats" in report
@@ -595,5 +633,11 @@ def test_build_run_summary_artifact_captures_stage_coverage() -> None:
             "eligible_decision_month_count"
         ]
         == 3
+    )
+    assert (
+        run_summary["coverage_summary"]["raw_data_selection"]["dataset_overview"][
+            "fundamentals_monthly"
+        ]["observed_date_columns"]
+        == ["report_date"]
     )
     assert run_summary["evidence_context"]["coverage_evidence_level"] == "insufficient_segment_history"

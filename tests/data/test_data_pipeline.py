@@ -13,7 +13,7 @@ import pytest
 from src.data.benchmarks import build_equal_weight_benchmark
 from src.data.config import RawDataPaths, load_data_pipeline_config
 from src.data.fundamentals_data import build_fundamentals_monthly
-from src.data.io import build_raw_file_selection_manifest, select_input_files
+from src.data.io import build_raw_file_selection_manifest, read_tabular_files, select_input_files
 from src.data.market_data import standardize_price_history
 from src.data.panel_assembly import assemble_monthly_panel, validate_one_row_per_ticker_per_month
 from src.data.standardize import assert_unique_keys, find_duplicate_keys
@@ -275,5 +275,52 @@ def test_research_scale_raw_file_selection_falls_back_to_sample_files() -> None:
         assert manifest.selected_source_kind == "seeded_sample_fallback"
         assert manifest.broader_raw_files_available is False
         assert manifest.used_seeded_sample_fallback is True
+    finally:
+        shutil.rmtree(raw_dir.parent, ignore_errors=True)
+
+
+def test_read_tabular_files_records_selected_file_provenance_and_observed_coverage() -> None:
+    """Loaded raw-file manifests should include per-file metadata and observed coverage."""
+    raw_dir = REPO_ROOT / ".tmp" / f"raw_manifest_observed_{uuid4().hex}" / "market"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        sample_path = raw_dir / "prices_daily_sample.csv"
+        sample_path.write_text(
+            "\n".join(
+                [
+                    "ticker,date,adjusted_close",
+                    "AAA,2024-01-02,10.0",
+                    "AAA,2024-02-29,11.0",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        execution = load_project_config(execution_mode="research_scale").execution
+        loaded = read_tabular_files(raw_dir, ("*.csv",), execution=execution)
+        manifest = loaded.attrs["raw_file_selection_manifest"]
+        detail = manifest["selected_file_details"][0]
+
+        assert manifest["selected_source_kind"] == "seeded_sample_fallback"
+        assert manifest["observed_total_row_count"] == 2
+        assert manifest["observed_date_columns"] == ["date"]
+        assert manifest["observed_min_date"] == "2024-01-02"
+        assert manifest["observed_max_date"] == "2024-02-29"
+        assert detail["file_name"] == sample_path.name
+        assert detail["source_kind"] == "sample"
+        assert detail["file_size_bytes"] > 0
+        assert detail["last_modified_utc"].endswith("+00:00")
+        assert detail["observed_row_count"] == 2
+        assert detail["observed_column_count"] == 3
+        assert detail["observed_columns"] == ["ticker", "date", "adjusted_close"]
+        assert detail["observed_date_columns"] == [
+            {
+                "column": "date",
+                "non_null_count": 2,
+                "min_date": "2024-01-02",
+                "max_date": "2024-02-29",
+            }
+        ]
     finally:
         shutil.rmtree(raw_dir.parent, ignore_errors=True)

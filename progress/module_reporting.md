@@ -42,6 +42,7 @@
 - Added overlap-window subperiod and regime diagnostics by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state.
 - Added explicit segment evidence tiers for insufficient-history versus broader-coverage exploratory diagnostics.
 - Added `outputs/reports/model_subperiod_comparison.csv` as a machine-readable segment-level comparison table.
+- Added compact raw-dataset provenance summaries to the coverage-audit sections and to `outputs/reports/run_summary.json`.
 - Implemented experiment-registry record creation and JSONL append behavior for deterministic and model-aware reports.
 - Replaced the scaffold evaluation-report CLI with a runnable implementation that writes the canonical reporting artifacts.
 - Added `src.run_model_evaluation_report` to write `outputs/reports/model_strategy_report.md`, `outputs/reports/model_comparison_summary.json`, and `outputs/reports/model_subperiod_comparison.csv` from the current canonical model artifacts.
@@ -57,6 +58,7 @@
   - model-evaluation-summary construction
   - model strategy report rendering
   - model experiment-registry append behavior
+  - compact raw-dataset provenance summaries in coverage reporting
 - `tests/evaluation/test_model_comparison.py` now covers:
   - overlap-aware deterministic-vs-model comparison logic
   - held-out fold coverage diagnostics
@@ -66,7 +68,7 @@
 - `tests/test_repo_skeleton.py` now exercises:
   - `src.run_evaluation_report`
   - `src.run_model_evaluation_report`
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `62 passed` on 2026-03-30.
 
 ## Manual Verification Status
 
@@ -75,6 +77,8 @@
 - `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale` completed successfully on 2026-03-30.
 - `outputs/reports/strategy_report.md`, `outputs/reports/model_strategy_report.md`, `outputs/reports/run_summary.json`, `outputs/reports/model_comparison_summary.json`, `outputs/reports/model_subperiod_comparison.csv`, and `outputs/reports/experiment_registry.jsonl` were manually reviewed for content, append behavior, and required context.
+- The refreshed research-scale report outputs now surface raw-dataset provenance lines for the selected sample fallback files plus observed raw row/date spans.
+- `.\.venv\Scripts\python.exe -m src.run_modeling_baselines --execution-mode research_scale`, `.\.venv\Scripts\python.exe -m src.run_model_backtest --execution-mode research_scale`, and `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report --execution-mode research_scale` were rerun sequentially on 2026-03-30 after the automated suite so the canonical model/report outputs remain in the default `logistic_regression` state.
 
 ## Known Issues / Risks
 

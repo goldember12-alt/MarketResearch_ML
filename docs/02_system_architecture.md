@@ -51,6 +51,7 @@ Execution-mode contract:
 - default `seeded` mode reads only sample-tagged raw files and preserves the current verification path
 - `research_scale` mode prefers broader non-sample local raw files in the documented raw-data directories
 - when broader local raw files are absent, `research_scale` falls back to the sample-tagged files and records that fallback in the QC/reporting artifacts
+- raw-file manifests now also capture per-file filesystem metadata plus observed raw row and date coverage for each selected input
 
 ### Data Stage
 
@@ -63,7 +64,7 @@ Execution-mode contract:
 5. derive `equal_weight_universe`
 6. standardize fundamentals, apply a conservative effective lag, and map them onto the monthly calendar
 7. write processed Parquet artifacts and dataset QC summaries
-8. record the raw-file selection manifest inside the dataset QC summaries so longer-history runs are auditable
+8. record the raw-file selection manifest inside the dataset QC summaries, including per-file provenance and observed raw coverage, so longer-history runs are auditable
 
 ### Panel Stage
 
@@ -122,7 +123,7 @@ Execution-mode contract:
 2. combine them with current signal and backtest config context
 3. build a benchmark-aware exploratory evaluation summary with required caveats
 4. render `outputs/reports/strategy_report.md`
-5. write `outputs/reports/run_summary.json` with raw-data selection and stage-level coverage
+5. write `outputs/reports/run_summary.json` with raw-data selection, per-dataset raw provenance overviews, and stage-level coverage
 6. append one record to `outputs/reports/experiment_registry.jsonl`
 
 ### Modeling Stage
@@ -201,6 +202,7 @@ Execution-mode contract:
 - Transaction costs are explicit and config-driven.
 - Reports must include benchmark context and bias caveats.
 - Reports must also surface whether a research-scale run actually used broader raw files or only sample fallback.
+- Coverage reporting should make the selected raw files auditable without requiring readers to inspect the raw directories manually.
 - Train-only numeric model preprocessing is implemented, but feature-generation-stage imputation remains intentionally disabled.
 - Point-in-time-safe fundamentals are not claimed; the current lag rule is a bias control, not a complete solution.
 

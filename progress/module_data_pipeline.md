@@ -48,6 +48,7 @@
 - Implemented deterministic monthly panel assembly on the full universe-by-month grid with aligned primary benchmark returns.
 - Implemented dataset QC JSON outputs and per-ticker/per-date coverage CSV outputs.
 - Added raw-file selection manifests to the dataset QC JSON outputs so longer-history runs are auditable.
+- Enriched the raw-file selection manifests with per-file filesystem metadata plus observed raw row/date coverage so future broader-history runs can prove exactly which local files were used.
 - Seeded deterministic local sample raw inputs so the implemented runners can be executed end to end inside the repo.
 
 ## Testing Status
@@ -61,8 +62,9 @@
   - fundamentals lagged monthly merge behavior
   - equal-weight benchmark construction
   - research-scale raw-file selection preference and fallback behavior
+  - raw-file manifest enrichment with per-file provenance and observed raw coverage
 - `tests/test_repo_skeleton.py` was updated so the data-stage CLIs are tested as implemented runners rather than scaffold-only stubs.
-- `.\.venv\Scripts\python.exe -m pytest -q` passed with `61 passed` on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `62 passed` on 2026-03-30.
 
 ## Manual Verification Status
 
@@ -72,6 +74,11 @@
 - `.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale` completed successfully on 2026-03-30.
 - Output row counts and QC summaries were manually reviewed for consistency with the seeded universe and sample date range.
 - Research-scale verification confirmed that broader local raw files were absent and that the new sample-fallback manifest fields were populated correctly.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` was rerun successfully on 2026-03-30 after the provenance upgrade.
+- The refreshed dataset QC summaries now show the observed seeded fallback coverage:
+  - `prices_daily_sample.csv`: `2580` raw rows, raw date span `2024-01-02` to `2024-06-28`
+  - `benchmarks_daily_sample.csv`: `258` raw rows, raw date span `2024-01-02` to `2024-06-28`
+  - `fundamentals_quarterly_sample.csv`: `60` raw rows, raw date span `2023-09-30` to `2024-03-31`
 
 ## Known Issues / Risks
 
