@@ -108,7 +108,9 @@ def assert_unique_keys(frame: pd.DataFrame, key_columns: list[str], dataset_name
 
 def month_difference(left: pd.Series, right: pd.Series) -> pd.Series:
     """Compute whole-month differences between two datetime series."""
+    left_dates = pd.to_datetime(left, errors="coerce")
+    right_dates = pd.to_datetime(right, errors="coerce")
     return (
-        (left.dt.year - right.dt.year) * 12
-        + (left.dt.month - right.dt.month)
+        (left_dates.dt.year - right_dates.dt.year) * 12
+        + (left_dates.dt.month - right_dates.dt.month)
     ).astype("Int64")

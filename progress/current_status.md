@@ -3,10 +3,20 @@
 ## Current Milestone
 
 - Data ingestion, canonical monthly-panel assembly, leakage-safe feature generation, deterministic signal generation, deterministic monthly backtesting, baseline evaluation reporting, multi-window modeling baselines, aggregated out-of-sample model-driven backtesting, overlap-aware model-aware reporting with structured coverage diagnostics, and the first Alpha Vantage + SEC remote raw-data acquisition layer are implemented for the local-file-first workflow. The repo still preserves the seeded verification path and the config-driven `research_scale` preference for broader non-sample local raw files.
+- A concrete staged implementation plan has now been written into `docs/10_development_roadmap.md` so future agents can work from a repo-native milestone sequence rather than ad hoc chat guidance.
+- Stage 1 from the roadmap is restored to green as of 2026-04-13: the `research_scale` ingestion regression in the fundamentals monthly alignment path was fixed by preserving datetimelike fundamentals date columns after the ticker-wise merge and by hardening `month_difference()` against object-backed datetime-like inputs with nulls.
+- Stage 2 from the roadmap is complete as of 2026-04-13: reporting and machine-readable provenance now distinguish clearly between broader local raw files that exist on disk, the raw inputs actually selected for the current run, and whether research-scale seeded fallback was triggered.
+- Stage 3 was exercised directly on 2026-04-13 and is partially complete with a verified blocker:
+  - a credentialed Alpha Vantage + SEC refresh was executed through `scripts/run_remote_refresh_and_research_scale.ps1`
+  - Alpha Vantage overview metadata succeeded for all `20` configured universe symbols, but monthly market prices then hit the provider's daily quota on the first `AAPL` request and benchmark-price refresh was skipped afterward
+  - SEC Company Facts refreshed successfully for all `20` configured universe symbols and now provides broader non-sample local fundamentals coverage from `2006-09-30` through `2026-02-28`
+  - the downstream deterministic `research_scale` pipeline was rerun manually after targeted fixes and completed successfully, but the selected-input profile remained mixed rather than fully broader because `prices_monthly` and `benchmarks_monthly` still fell back to seeded samples while `fundamentals_monthly` selected the refreshed non-sample SEC parquet
 
 ## What Is Completed
 
 - `src.data` includes config-driven modules for raw file ingestion, standardization, benchmark construction, QC, and deterministic monthly panel assembly.
+- `src.data.fundamentals_data` now explicitly re-coerces `fundamentals_source_date` and `fundamentals_effective_date` after the ticker-wise monthly merge so mixed populated and empty ticker histories do not degrade those columns to `object` dtype before staleness checks run.
+- `src.data.standardize.month_difference()` now safely coerces both inputs with `pd.to_datetime(..., errors="coerce")` before using `.dt`, so null-bearing object-backed datetime-like series do not crash the fundamentals staleness logic.
 - `src.data` now also includes config-driven execution-mode handling for:
   - default `seeded` raw-file selection
   - `research_scale` raw-file selection that prefers non-sample local files and records sample fallback explicitly
@@ -24,6 +34,9 @@
 - `scripts/run_remote_refresh_and_research_scale.ps1` now also dot-sources a repo-local credential loader so Alpha Vantage and SEC identity values can be stored persistently in `config/remote_provider_env.local.ps1` instead of being re-exported manually in every PowerShell session.
 - `src.data.io` now ignores headerless empty non-sample CSVs during raw-file discovery so the documented `research_scale` seeded-fallback path still works when an upstream fetch leaves behind unusable empty latest files.
 - `src.data.sec_companyfacts.py` now decodes gzip-compressed SEC responses before JSON parsing, fixing the live `UnicodeDecodeError` observed on 2026-03-31.
+- `src.data.sec_companyfacts.map_companyfacts_to_quarterly_fundamentals()` now preserves sparse SEC concept coverage instead of failing the whole ticker when optional columns such as `gross_profit` or `operating_income` are absent.
+- `src.run_fetch_remote_raw._resolve_manifest_path()` now resolves dataset manifest paths without trying to format symbolized raw snapshot templates, fixing the `KeyError: 'symbol'` that aborted the 2026-04-13 credentialed refresh after the SEC stage.
+- `src.data.fundamentals_data.standardize_fundamentals_raw()` now collapses same-ticker duplicate month-end source observations after month normalization by combining the first non-null canonical values across duplicates, allowing the refreshed SEC broader-history parquet to pass the downstream uniqueness contract.
 - `src.features` includes config loading, leakage-safe feature engineering, feature QC, and feature missingness summaries.
 - `src.signals` includes:
   - signal-stage config loading
@@ -52,6 +65,7 @@
   - overlap-window regime and subperiod diagnostics by fold, calendar quarter, calendar half-year, calendar year, benchmark direction, benchmark drawdown state, and benchmark volatility state
   - segment evidence-tier labeling for insufficient-history versus broader-coverage exploratory diagnostics
   - compact raw-dataset provenance summaries inside coverage-audit reporting
+  - run-level raw-input selection profiles that separate on-disk broader raw availability from the inputs actually selected for the run
   - experiment-registry record creation
   - JSONL append logic for meaningful evaluation-report, modeling-baseline, model-backtest, and model-evaluation-report runs
 - `src.models` includes:
@@ -111,11 +125,14 @@
   - overlap-window subperiod and regime diagnostics
   - evidence-tier classification for short versus longer segment history
   - compact raw-dataset provenance rendering in coverage audits
+- Focused reporting tests now also cover the seeded-run ambiguity case where broader local raw files exist on disk but the current run still selected seeded sample inputs only.
 - Focused data-pipeline tests were added for:
   - research-scale raw-file selection preference for non-sample files
   - research-scale fallback to sample-tagged raw files when broader local raw coverage is absent
   - research-scale fallback when headerless empty non-sample CSVs are present
   - per-file raw-file provenance and observed raw-coverage metadata in ingestion manifests
+  - fundamentals monthly alignment when some universe tickers have no fundamentals history
+  - object-backed datetime/null coercion in `month_difference()`
 - Focused remote-fetch tests were added for:
   - remote fetch config loading
   - output naming and manifest path selection
@@ -130,6 +147,8 @@
   - SEC ticker-to-CIK parsing
   - SEC user-agent resolution from environment variables
   - SEC Company Facts conservative quarterly mapping
+  - sparse SEC Company Facts mappings that omit optional concepts
+  - manifest-path resolution for raw SEC snapshot configs whose snapshot filenames require a `{symbol}` placeholder
 - Pytest cache-provider persistence was disabled in `pyproject.toml` because this OneDrive-backed workspace was repeatedly failing cache writes and scattering `pytest-cache-files-*` fallback directories under the repo root.
 - `tests/backtest/test_backtest_pipeline.py` now also covers explicit realized-period-end override behavior for sparse ranking inputs.
 - `tests/test_repo_skeleton.py` now runs:
@@ -144,6 +163,13 @@
 - `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_remote_fetch.py` passed with `14 passed` on 2026-03-31 after the SEC gzip and Alpha Vantage quota patch.
 - `.\.venv\Scripts\python.exe -m pytest -q` passed with `77 passed` on 2026-03-31 after the SEC gzip and Alpha Vantage quota patch.
 - Pytest still emitted one cache warning because the environment could not create `.pytest_cache` paths under the workspace.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_data_pipeline.py` passed with `13 passed` on 2026-04-13 after the fundamentals datetime/null-handling regression fix.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/test_repo_skeleton.py::test_data_ingestion_cli_supports_research_scale_mode` passed on 2026-04-13 after the same fix restored the `research_scale` ingestion smoke path.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `79 passed` on 2026-04-13.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/reporting/test_evaluation_reporting.py tests/evaluation/test_model_comparison.py` passed with `14 passed` on 2026-04-13 after the Stage 2 reporting/provenance hardening patch.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `82 passed` on 2026-04-13 after the same patch added seeded-versus-broader-availability reporting tests.
+- `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_data_pipeline.py tests/data/test_remote_fetch.py` passed with `30 passed` on 2026-04-13 after the Stage 3 sparse-SEC, raw-manifest-path, and duplicate-month fundamentals fixes.
+- `.\.venv\Scripts\python.exe -m pytest -q` passed with `85 passed` on 2026-04-13 after the same Stage 3 fixes.
 
 ## Manual Verification Status
 
@@ -166,8 +192,12 @@
 - `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --help` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion` completed successfully on 2026-03-30 after the remote-fetch implementation.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion` completed successfully on 2026-04-13 after the fundamentals datetime/null-handling fix.
 - `powershell -NoProfile -Command "[scriptblock]::Create((Get-Content 'scripts\run_remote_refresh_and_research_scale.ps1' -Raw)) | Out-Null; Write-Output 'parsed'"` completed successfully on 2026-03-30.
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` completed successfully on 2026-03-30.
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` completed successfully on 2026-04-13 after the fundamentals datetime/null-handling fix.
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report` completed successfully on 2026-04-13 after the Stage 2 reporting/provenance hardening patch.
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report` completed successfully on 2026-04-13 after the same patch.
 - `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_remote_fetch.py` completed successfully on 2026-03-30 after the fetch logging patch.
 - `.\.venv\Scripts\python.exe -m pytest -q tests/data/test_data_pipeline.py tests/data/test_remote_fetch.py` completed successfully on 2026-03-30 after the empty-CSV fallback hardening.
 - `.\.venv\Scripts\python.exe -m src.run_data_ingestion` completed successfully on 2026-03-30 after the fetch logging patch.
@@ -193,10 +223,38 @@
   - `model_comparison_summary.json`: comparison convention, fold diagnostics, overlap-only deterministic-vs-model metrics, coverage summary, and subperiod diagnostics metadata present
   - `model_subperiod_comparison.csv`: overlap segments present for fold, calendar quarter, calendar half-year, calendar year, benchmark-direction, drawdown-state, and volatility-state breakdowns
   - `experiment_registry.jsonl`: append behavior confirmed for `model_evaluation_report` with overlap comparison, coverage summary, and subperiod content in `result_summary`
+- The regenerated 2026-04-13 reporting artifacts were manually checked again:
+  - `strategy_report.md`: coverage audit now says the run selected `seeded sample only`, shows broader fundamentals raw on disk separately, and adds an explicit note that those broader files were not used for the seeded run
+  - `model_strategy_report.md`: the same seeded-versus-broader distinction is present in the model-aware coverage audit
+  - `run_summary.json`: `coverage_summary.raw_data_selection` now records `selected_input_profile`, `uses_only_seeded_sample_inputs`, dataset lists for broader on-disk availability versus selected seeded inputs, and the per-dataset seeded/broader booleans
+  - `model_comparison_summary.json`: the same expanded raw-data coverage contract is preserved inside the model-aware machine-readable summary
 - Research-scale manual verification confirmed that broader local raw files were not present under the documented raw-data directories on 2026-03-30, so the new execution path correctly used seeded-sample fallback and recorded that fact in the QC and reporting artifacts.
 - Live Alpha Vantage and SEC provider calls were not manually exercised on 2026-03-30 because this verification pass did not use API credentials or SEC identity values.
 - Live Alpha Vantage and SEC provider calls were also not exercised during the 2026-03-31 UTC wrapper failure-path check because the environment variables were intentionally unset to verify preflight logging only.
 - A live provider run on 2026-03-31 confirmed that the Alpha Vantage free key can exhaust its daily quota during the overview stage for this configured symbol list, so the patched fetch CLI now skips later Alpha Vantage stages after that condition instead of writing fresh empty latest files.
+- `powershell -ExecutionPolicy Bypass -File .\scripts\run_remote_refresh_and_research_scale.ps1` was executed with live credentials on 2026-04-13. The wrapper confirmed `ALPHAVANTAGE_API_KEY=True`, `SEC_CONTACT_EMAIL=True`, and `SEC_USER_AGENT=False`; Alpha Vantage overview metadata completed for all `20` configured symbols; the first monthly market-price call for `AAPL` then returned the provider's quota/throttle message; benchmark-price refresh was skipped; and SEC Company Facts completed for all `20` configured symbols.
+- The same 2026-04-13 wrapper run also exposed a local bug after the SEC stage: `_resolve_manifest_path(config.outputs.sec_companyfacts_raw, ...)` raised `KeyError: 'symbol'`, preventing the fetch-run manifest from being written and causing the wrapper to stop before the downstream stages. That bug was reproduced locally and then fixed.
+- The refreshed 2026-04-13 raw manifests now show:
+  - `overview_metadata`: `20/20` completed symbols, `20` rows, raw date span `2025-12-31` to `2026-02-28`
+  - `market_prices`: `0/20` completed symbols, `AAPL` failed immediately with the Alpha Vantage quota message, `0` rows
+  - `benchmark_prices`: skipped after the earlier Alpha Vantage quota detection, `0` rows
+  - `fundamentals_sec_companyfacts`: `20/20` completed symbols, `1386` mapped rows, raw report-date span `2006-09-30` to `2026-02-28`
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale` initially failed on 2026-04-13 because the refreshed SEC parquet produced duplicate standardized `ticker` plus month-end source keys after month normalization. A targeted collapse of duplicate same-month fundamentals rows fixed that downstream blocker.
+- After the Stage 3 fixes, the deterministic downstream `research_scale` path was rerun successfully on 2026-04-13 via:
+  - `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale`
+  - `.\.venv\Scripts\python.exe -m src.run_panel_assembly --execution-mode research_scale`
+  - `.\.venv\Scripts\python.exe -m src.run_feature_generation --execution-mode research_scale`
+  - `.\.venv\Scripts\python.exe -m src.run_signal_generation --execution-mode research_scale`
+  - `.\.venv\Scripts\python.exe -m src.run_backtest --execution-mode research_scale`
+  - `.\.venv\Scripts\python.exe -m src.run_evaluation_report --execution-mode research_scale`
+- The resulting 2026-04-13 `research_scale` outputs were manually checked:
+  - `outputs/data/prices_qc_summary.json`: `research_scale` still selected `prices_daily_sample.csv` with seeded fallback because no usable non-sample market raw file exists on disk
+  - `outputs/data/benchmarks_qc_summary.json`: `research_scale` still selected `benchmarks_daily_sample.csv` with seeded fallback because no usable non-sample benchmark raw file exists on disk
+  - `outputs/data/fundamentals_qc_summary.json`: `research_scale` selected `fundamentals_quarterly_sec_companyfacts.parquet` as broader local raw with observed raw coverage from `2006-09-30` to `2026-03-25`
+  - `outputs/reports/run_summary.json`: `coverage_summary.raw_data_selection.selected_input_profile` now records `mixed_selected_inputs`, with broader local raw selected only for `fundamentals_monthly`
+  - `outputs/reports/strategy_report.md`: coverage audit explicitly says the run used `mixed seeded sample and broader local raw` inputs and labels the run exploratory
+  - `outputs/reports/experiment_registry.jsonl`: a new `evaluation_report` registry record was appended for the 2026-04-13 `research_scale` deterministic rerun
+- The optional model path was not rerun on 2026-04-13 because market prices and benchmarks remained sample-only; the realized history in the deterministic rerun therefore remained the same `2024-02-29` through `2024-06-30` exploratory window and was not strong enough to justify another model refresh.
 - Repo-local `src/` and `tests/` `__pycache__` directories were moved into `.cache/cleanup_archive/20260331T032749Z/python_bytecode/` on 2026-03-30.
 - Legacy root-level `pytest-cache-files-*` directories could not be deleted or moved from the current shell on 2026-03-30 because the workspace returned `Access is denied` for those paths.
 - The refreshed QC artifacts now also confirm the observed seeded raw-file spans used during fallback:
@@ -208,18 +266,24 @@
 
 ## Immediate Next Step
 
-- Run the first credentialed `src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale` refresh, inspect the raw manifests for throttle and partial-failure conditions, and then rerun the full downstream `research_scale` path on the fetched broader local raw coverage.
+- Finish Stage 3 from `docs/10_development_roadmap.md` by rerunning the credentialed Alpha Vantage refresh on a fresh quota window so `prices_monthly` and `benchmarks_monthly` can write usable non-sample local raw files, then rerun the downstream `research_scale` pipeline and confirm the selected-input profile is no longer mixed.
 
 ## Known Risks / Open Issues
 
 - The raw-data path remains local-file-first downstream even though the upstream remote fetch layer is now implemented.
-- Live Alpha Vantage and SEC fetches were not exercised during the 2026-03-30 verification pass, so provider behavior is test-covered but not credential-verified in this workspace state.
+- The Alpha Vantage and SEC providers are now credential-verified in this workspace state, but the 2026-04-13 live refresh did not achieve broader non-sample market or benchmark coverage because the Alpha Vantage daily quota was exhausted before the monthly price stages could refresh.
+- The current remote fetch order still spends the Alpha Vantage quota budget on overview metadata before monthly market and benchmark price history. Until that priority is changed or the quota window is fresh enough to cover every requested stage, Stage 3 can still stall before the most important monthly price outputs are written.
+- The 2026-04-13 fetch-run manifest was not produced for that live run because the raw SEC manifest-path bug interrupted the CLI after the SEC stage. The underlying bug is now fixed, but the fetch CLI was not rerun the same day because the Alpha Vantage key had already hit its quota condition.
 - The historical root-level `pytest-cache-files-*` directories appear to have been created by pytest cache-provider fallback behavior after repeated cache-path access failures in this OneDrive-backed workspace.
 - Fundamentals are not point-in-time safe. The current upstream lag rules are conservative heuristics, not a complete point-in-time solution.
 - Fundamentals-derived features and signals therefore still carry revised-history bias risk.
 - The current sample raw files are deterministic local fixtures for pipeline verification, not benchmark-quality research data.
 - The implemented SEC mapping is intentionally conservative and leaves several canonical valuation fields unmapped rather than backfilling speculative values.
-- The new `research_scale` path is implemented and verified, but it cannot produce a genuinely longer-history run until broader local raw files are actually fetched or added.
+- The latest deterministic `research_scale` rerun is still exploratory only because its selected-input profile is mixed:
+  - `fundamentals_monthly` uses broader non-sample SEC raw coverage
+  - `prices_monthly` and `benchmarks_monthly` still use seeded-sample fallback
+  - downstream monthly outputs and realized backtest history therefore still cover only `2024-01-31` through `2024-06-30`
+- The current seeded reports no longer blur on-disk availability versus selected inputs, but broader non-sample provenance is still represented via file-level details and filenames rather than through a normalized provider/source taxonomy.
 - The current backtest uses a simple linear turnover cost model and `0.0` cash return baseline.
 - The current model-driven backtest now uses aggregated out-of-sample windows, but realized-period coverage is still short.
 - Very short sample histories make annualized metrics unstable and unsuitable for strong performance claims.

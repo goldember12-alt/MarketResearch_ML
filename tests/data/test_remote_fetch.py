@@ -31,6 +31,7 @@ from src.data.sec_companyfacts import (
 )
 from src.run_fetch_remote_raw import (
     _aggregate_symbol_outcomes,
+    _resolve_manifest_path,
     _summarize_frame,
     _write_dataset_outputs,
 )
@@ -191,6 +192,26 @@ def test_write_dataset_outputs_skips_empty_frames() -> None:
         assert not (temp_base_dir / "snapshots" / "prices_monthly_alphavantage_20260331T120000Z.csv").exists()
     finally:
         shutil.rmtree(temp_base_dir, ignore_errors=True)
+
+
+def test_resolve_manifest_path_ignores_symbolized_snapshot_templates() -> None:
+    """Manifest-path resolution should not require formatting raw snapshot symbol placeholders."""
+    config = load_remote_raw_fetch_config(execution_mode="research_scale")
+
+    manifest_path = _resolve_manifest_path(
+        config.outputs.sec_companyfacts_raw,
+        "20260413T222852Z",
+    )
+
+    assert manifest_path == (
+        REPO_ROOT
+        / "data"
+        / "raw"
+        / "fundamentals"
+        / "sec_companyfacts"
+        / "manifests"
+        / "sec_companyfacts_raw_manifest.json"
+    )
 
 
 def test_parse_monthly_adjusted_response_returns_sorted_numeric_frame() -> None:
@@ -519,3 +540,77 @@ def test_map_companyfacts_to_quarterly_fundamentals_builds_conservative_subset()
     assert frame["roa"].tolist() == [0.04, 0.04]
     assert frame["debt_to_equity"].tolist() == [0.25, pytest.approx(110 / 420)]
     assert frame["current_ratio"].tolist() == [2.0, 2.0]
+
+
+def test_map_companyfacts_to_quarterly_fundamentals_keeps_sparse_metrics_as_null_columns() -> None:
+    """Sparse SEC payloads should still map instead of failing on absent optional concepts."""
+    payload = {
+        "facts": {
+            "us-gaap": {
+                "Assets": {
+                    "units": {
+                        "USD": [
+                            {
+                                "end": "2024-03-31",
+                                "filed": "2024-05-01",
+                                "form": "10-Q",
+                                "val": 1000,
+                            }
+                        ]
+                    }
+                },
+                "StockholdersEquity": {
+                    "units": {
+                        "USD": [
+                            {
+                                "end": "2024-03-31",
+                                "filed": "2024-05-01",
+                                "form": "10-Q",
+                                "val": 400,
+                            }
+                        ]
+                    }
+                },
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "units": {
+                        "USD": [
+                            {
+                                "start": "2024-01-01",
+                                "end": "2024-03-31",
+                                "filed": "2024-05-01",
+                                "form": "10-Q",
+                                "fp": "Q1",
+                                "frame": "CY2024Q1I",
+                                "val": 200,
+                            }
+                        ]
+                    }
+                },
+                "NetIncomeLoss": {
+                    "units": {
+                        "USD": [
+                            {
+                                "start": "2024-01-01",
+                                "end": "2024-03-31",
+                                "filed": "2024-05-01",
+                                "form": "10-Q",
+                                "fp": "Q1",
+                                "frame": "CY2024Q1I",
+                                "val": 40,
+                            }
+                        ]
+                    }
+                },
+            }
+        }
+    }
+
+    frame = map_companyfacts_to_quarterly_fundamentals(payload, ticker="META")
+
+    assert frame["ticker"].tolist() == ["META"]
+    assert frame["report_date"].dt.strftime("%Y-%m-%d").tolist() == ["2024-03-31"]
+    assert "gross_profit" in frame.columns
+    assert "operating_income" in frame.columns
+    assert pd.isna(frame.loc[0, "gross_profit"])
+    assert pd.isna(frame.loc[0, "operating_income"])
+    assert frame.loc[0, "roe"] == pytest.approx(0.1)

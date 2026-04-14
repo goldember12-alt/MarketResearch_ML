@@ -99,8 +99,8 @@ def _resolve_manifest_path(output_config: DatasetOutputConfig, timestamp_token: 
     return resolve_dataset_output_targets(
         base_dir=output_config.base_dir,
         latest_filename=output_config.latest_filename,
-        snapshot_subdir=output_config.snapshot_subdir,
-        snapshot_filename_template=output_config.snapshot_filename_template,
+        snapshot_subdir=None,
+        snapshot_filename_template=None,
         manifest_subdir=output_config.manifest_subdir,
         latest_manifest_filename=output_config.latest_manifest_filename,
         timestamp_token=timestamp_token,

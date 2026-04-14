@@ -2,7 +2,233 @@
 
 ## Current Milestone
 
-The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, overlap-aware model-aware reporting with structured coverage diagnostics, and the first upstream Alpha Vantage + SEC remote raw-data acquisition layer are implemented. The next milestone is a first credentialed longer-history refresh and downstream rerun on remote-sourced broader local raw coverage.
+The deterministic baseline workflow, chronology-safe modeling baselines, walk-forward multi-window model evaluation, aggregated out-of-sample model-driven backtesting, overlap-aware model-aware reporting, the Stage 2 reporting/provenance consistency hardening pass, and the first upstream Alpha Vantage + SEC remote raw-data acquisition layer are implemented. The next milestone is Stage 3: a first credentialed longer-history refresh and downstream rerun on remote-sourced broader local raw coverage.
+
+## Near-Term Implementation Plan
+
+The repo now needs a stabilization-to-research sequence rather than another broad feature burst. The near-term plan is to move from an exploratory seeded verification framework to a stable longer-history research workflow in clearly staged milestones.
+
+### Stage 1: Restore A Fully Green Baseline
+
+Purpose:
+
+- make the currently documented workflow pass cleanly again before adding more scope
+
+Primary work items:
+
+- fix the current `research_scale` ingestion regression in the fundamentals monthly alignment path
+- verify datetime coercion and null-handling behavior in the fundamentals staleness logic
+- rerun the full automated suite under the repo-local `.venv`
+- confirm the seeded and `research_scale` data-stage CLIs both complete successfully
+
+Expected code areas:
+
+- `src/data/fundamentals_data.py`
+- `src/data/standardize.py`
+- `tests/data/test_data_pipeline.py`
+- `tests/test_repo_skeleton.py`
+
+Required verification:
+
+- `.\.venv\Scripts\python.exe -m pytest -q`
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion`
+- `.\.venv\Scripts\python.exe -m src.run_data_ingestion --execution-mode research_scale`
+
+Exit criteria:
+
+- no failing automated tests
+- no `research_scale` ingestion failure in the current workspace state
+- progress files updated with the exact verification result
+
+### Stage 2: Reporting And Provenance Consistency Hardening
+
+Purpose:
+
+- make the repo's self-description trustworthy before using it for broader research runs
+
+Primary work items:
+
+- reconcile machine-readable and markdown reporting for raw-data provenance and broader-history availability
+- ensure seeded runs clearly distinguish:
+  - broader local raw files exist somewhere in the raw directories
+  - the current run actually selected seeded sample files
+- add focused tests for the coverage-summary and report-rendering behavior
+
+Expected code areas:
+
+- `src/evaluation/coverage.py`
+- `src/reporting/markdown.py`
+- `tests/reporting/test_evaluation_reporting.py`
+- `tests/evaluation/test_model_comparison.py`
+
+Required verification:
+
+- `.\.venv\Scripts\python.exe -m pytest -q tests/reporting/test_evaluation_reporting.py tests/evaluation/test_model_comparison.py`
+- `.\.venv\Scripts\python.exe -m src.run_evaluation_report`
+- `.\.venv\Scripts\python.exe -m src.run_model_evaluation_report`
+
+Exit criteria:
+
+- markdown reports and machine-readable run summaries agree on raw-data selection context
+- seeded runs do not imply benchmark-quality broader-history evidence
+
+### Stage 3: Make `research_scale` Produce Genuine Longer-History Inputs
+
+Purpose:
+
+- move from sample fallback to actual broader local raw coverage
+
+Primary work items:
+
+- run the credentialed remote refresh path against Alpha Vantage and SEC inputs
+- inspect provider manifests for quota, partial-failure, and coverage conditions
+- confirm usable non-sample local files exist for:
+  - market prices
+  - benchmark prices
+  - fundamentals
+- rerun the downstream `research_scale` path using those local non-sample files
+
+Expected code areas:
+
+- `src/run_fetch_remote_raw.py`
+- `src/data/alphavantage.py`
+- `src/data/sec_companyfacts.py`
+- `scripts/run_remote_refresh_and_research_scale.ps1`
+- `config/remote_data.yaml`
+
+Required verification:
+
+- `.\.venv\Scripts\python.exe -m src.run_fetch_remote_raw --provider alphavantage_sec --execution-mode research_scale`
+- full downstream `research_scale` pipeline through reporting
+
+Exit criteria:
+
+- `research_scale` no longer depends on seeded fallback for the main datasets in the run being evaluated
+- manifests are written and reviewed for partial-failure conditions
+- the resulting run is logged in `outputs/reports/experiment_registry.jsonl`
+
+### Stage 4: Establish The First Meaningful Deterministic Research Baseline
+
+Purpose:
+
+- create the first longer-history benchmark-aware baseline before expanding ML claims
+
+Primary work items:
+
+- rerun deterministic ingestion, panel assembly, feature generation, signal generation, backtesting, and reporting on broader local raw history
+- inspect coverage counts, turnover, benchmark gaps, and missingness on the longer run
+- document the run as exploratory unless and until point-in-time and data-quality caveats materially improve
+
+Expected code areas:
+
+- deterministic stage CLIs and existing output/reporting paths
+- `docs/05_backtest_spec.md`
+- `docs/07_evaluation_spec.md`
+- `progress/current_status.md`
+
+Required verification:
+
+- full deterministic pipeline under `research_scale`
+- manual review of `outputs/reports/strategy_report.md`, `outputs/reports/run_summary.json`, and the experiment registry append
+
+Exit criteria:
+
+- a longer-history deterministic report exists
+- benchmark comparisons are based on materially more than the seeded 5 realized months
+- docs and progress notes reflect the actual evidence level
+
+### Stage 5: Deepen Modeling Only After The Deterministic Baseline Is Useful
+
+Purpose:
+
+- expand ML evaluation on top of a research-quality deterministic baseline rather than on top of fixtures
+
+Primary work items:
+
+- rerun walk-forward modeling on broader history
+- preserve run identity so later model runs do not silently erase comparison context
+- compare `logistic_regression` and `random_forest` systematically on the same longer-history windows
+- extend overlap-aware deterministic-vs-model reporting once the overlap window is materially longer
+
+Expected code areas:
+
+- `src/models/*`
+- `src/run_modeling_baselines.py`
+- `src/run_logistic_regression.py`
+- `src/run_random_forest.py`
+- `src/run_model_backtest.py`
+- `src/run_model_evaluation_report.py`
+
+Required verification:
+
+- full modeling path under `research_scale`
+- manual review of model metadata, model backtest outputs, and model-aware reports
+
+Exit criteria:
+
+- model evaluation is based on materially longer realized history
+- model-versus-deterministic comparisons are not dominated by tiny overlap windows
+- output/versioning caveats are documented honestly
+
+### Stage 6: Clean Up Structural Debt Before Forward Evaluation
+
+Purpose:
+
+- reduce confusion and workflow fragility before adding new execution stages
+
+Primary work items:
+
+- decide whether `src/portfolio` should own portfolio construction logic or remain a documented placeholder
+- reduce canonical artifact overwrite ambiguity for model runs where practical
+- keep provenance, run identity, and experiment logging aligned
+
+Expected code areas:
+
+- `src/portfolio/`
+- `src/backtest/`
+- `src/models/`
+- `src/reporting/registry.py`
+
+Exit criteria:
+
+- the repo structure matches the documented ownership boundaries
+- future agents can identify the latest meaningful run without guessing
+
+### Stage 7: Defer Paper Trading Until The Research Core Is Credible
+
+Purpose:
+
+- avoid starting forward evaluation on top of unstable or sample-only evidence
+
+Prerequisites:
+
+- stable green automated suite
+- genuine longer-history `research_scale` path
+- meaningful deterministic benchmark baseline
+- materially longer model overlap windows if model-driven forward evaluation is considered
+
+Deferred deliverables:
+
+- `outputs/paper_trading/` population
+- later paper-trading-style orchestration and reporting
+
+## Immediate Priority Order
+
+1. Stage 3: obtain usable broader local raw coverage
+2. Stage 4: establish the first meaningful deterministic research run
+3. Stage 5: deepen modeling on longer history
+4. Stage 6: clean up architectural debt
+5. Stage 7: forward evaluation only after the core is credible
+
+## Review Checklist For Future Agents
+
+When picking up this roadmap, verify these facts before claiming progress:
+
+- whether `.\.venv\Scripts\python.exe -m pytest -q` is currently green
+- whether `research_scale` still falls back to seeded sample files
+- whether markdown reports and `run_summary.json` agree on raw-data selection context, especially when broader local raw files exist on disk but the run still selected seeded sample inputs
+- whether the latest canonical model artifacts reflect the configured selected model or a later overwrite
+- whether longer-history runs are truly based on non-sample local raw files
 
 ## Phase 1: Scaffold And Contract Alignment
 

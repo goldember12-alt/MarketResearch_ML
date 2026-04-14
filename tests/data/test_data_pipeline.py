@@ -12,11 +12,11 @@ import pytest
 
 from src.data.benchmarks import build_equal_weight_benchmark
 from src.data.config import RawDataPaths, load_data_pipeline_config
-from src.data.fundamentals_data import build_fundamentals_monthly
+from src.data.fundamentals_data import build_fundamentals_monthly, standardize_fundamentals_raw
 from src.data.io import build_raw_file_selection_manifest, read_tabular_files, select_input_files
 from src.data.market_data import standardize_price_history
 from src.data.panel_assembly import assemble_monthly_panel, validate_one_row_per_ticker_per_month
-from src.data.standardize import assert_unique_keys, find_duplicate_keys
+from src.data.standardize import assert_unique_keys, find_duplicate_keys, month_difference
 from src.utils.config import load_project_config
 
 
@@ -210,6 +210,117 @@ def test_fundamentals_to_month_merge_uses_effective_lag_rule() -> None:
         assert may == pytest.approx(120.0)
     finally:
         shutil.rmtree(raw_root, ignore_errors=True)
+
+
+def test_fundamentals_monthly_handles_missing_ticker_histories_without_losing_datetime_dtype() -> None:
+    """Mixed populated and empty ticker histories should preserve datetime handling."""
+    config = load_data_pipeline_config()
+    raw_root = REPO_ROOT / "tests" / "data" / "runtime_raw"
+    shutil.rmtree(raw_root, ignore_errors=True)
+    market_dir = raw_root / "market"
+    benchmarks_dir = raw_root / "benchmarks"
+    fundamentals_dir = raw_root / "fundamentals"
+    for directory in (market_dir, benchmarks_dir, fundamentals_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    pd.DataFrame(
+        {
+            "ticker": ["AAA"],
+            "report_date": ["2023-12-31"],
+            "sector": ["Tech"],
+            "industry": ["Software"],
+            "market_cap": [100.0],
+            "pe_ratio": [20.0],
+        }
+    ).to_csv(fundamentals_dir / "fundamentals.csv", index=False)
+
+    test_config = replace(
+        config,
+        raw=RawDataPaths(
+            root_dir=raw_root,
+            market_dir=market_dir,
+            fundamentals_dir=fundamentals_dir,
+            benchmarks_dir=benchmarks_dir,
+            file_patterns=("*.csv",),
+        ),
+        project=replace(
+            config.project,
+            execution=load_project_config(execution_mode="research_scale").execution,
+            universe=replace(
+                config.project.universe,
+                tech_tickers=("AAA", "BBB"),
+                comparison_tickers=(),
+            ),
+        ),
+    )
+
+    try:
+        monthly = build_fundamentals_monthly(
+            test_config,
+            monthly_dates=pd.Series(pd.to_datetime(["2024-01-31", "2024-02-29"])),
+        )
+
+        assert str(monthly["fundamentals_source_date"].dtype).startswith("datetime64")
+        assert str(monthly["fundamentals_effective_date"].dtype).startswith("datetime64")
+
+        aaa_february = monthly[
+            (monthly["ticker"] == "AAA") & (monthly["date"] == pd.Timestamp("2024-02-29"))
+        ].iloc[0]
+        bbb_rows = monthly[monthly["ticker"] == "BBB"]
+
+        assert aaa_february["market_cap"] == pytest.approx(100.0)
+        assert aaa_february["fundamentals_effective_date"] == pd.Timestamp("2024-02-29")
+        assert bbb_rows["fundamentals_effective_date"].isna().all()
+        assert bbb_rows["market_cap"].isna().all()
+    finally:
+        shutil.rmtree(raw_root, ignore_errors=True)
+
+
+def test_month_difference_coerces_object_backed_datetime_series() -> None:
+    """Month-difference helper should accept object-backed timestamp series with nulls."""
+    left = pd.Series(pd.to_datetime(["2024-03-31", "2024-04-30"]))
+    right = pd.Series([pd.Timestamp("2024-01-31"), pd.NA], dtype="object")
+
+    differences = month_difference(left, right)
+
+    assert differences.tolist() == [2, pd.NA]
+
+
+def test_standardize_fundamentals_raw_collapses_duplicate_month_end_rows() -> None:
+    """Source dates that normalize into the same month should collapse to one canonical row."""
+    config = load_data_pipeline_config()
+    test_config = replace(
+        config,
+        project=replace(
+            config.project,
+            execution=load_project_config(execution_mode="research_scale").execution,
+            universe=replace(
+                config.project.universe,
+                tech_tickers=("XOM",),
+                comparison_tickers=(),
+            ),
+        ),
+    )
+    raw = pd.DataFrame(
+        {
+            "ticker": ["XOM", "XOM"],
+            "report_date": ["2012-06-01", "2012-06-30"],
+            "sector": ["Energy", "Energy"],
+            "industry": ["Integrated", "Integrated"],
+            "market_cap": [pd.NA, 100.0],
+            "roe": [0.15, pd.NA],
+            "current_ratio": [pd.NA, 1.03],
+        }
+    )
+
+    standardized = standardize_fundamentals_raw(raw, config=test_config)
+
+    assert standardized["fundamentals_source_date"].dt.strftime("%Y-%m-%d").tolist() == [
+        "2012-06-30"
+    ]
+    assert standardized.loc[0, "market_cap"] == pytest.approx(100.0)
+    assert standardized.loc[0, "roe"] == pytest.approx(0.15)
+    assert standardized.loc[0, "current_ratio"] == pytest.approx(1.03)
 
 
 def test_equal_weight_benchmark_averages_constituent_returns() -> None:

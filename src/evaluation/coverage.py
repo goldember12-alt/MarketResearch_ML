@@ -7,6 +7,9 @@ from typing import Any
 from src.utils.config import ProjectConfig
 
 
+_SEEDED_SELECTION_KINDS = {"seeded_sample", "seeded_sample_fallback"}
+
+
 def _stage_entry_from_qc(
     qc_summary: dict[str, Any],
     *,
@@ -31,6 +34,10 @@ def _aggregate_raw_data_selection(
         for summary in summaries
         if summary.get("raw_file_selection") is not None
     }
+    dataset_overview = {
+        dataset_name: _build_raw_dataset_overview(selection)
+        for dataset_name, selection in raw_selection.items()
+    }
     broader_local_raw_available = any(
         bool(selection.get("broader_raw_files_available"))
         for selection in raw_selection.values()
@@ -38,22 +45,78 @@ def _aggregate_raw_data_selection(
     seeded_sample_fallback_used = any(
         bool(selection.get("used_seeded_sample_fallback")) for selection in raw_selection.values()
     )
+    datasets_using_seeded_sample_inputs = sorted(
+        dataset_name
+        for dataset_name, selection in raw_selection.items()
+        if selection.get("selected_source_kind") in _SEEDED_SELECTION_KINDS
+    )
+    datasets_using_broader_local_raw_inputs = sorted(
+        dataset_name
+        for dataset_name, selection in raw_selection.items()
+        if selection.get("selected_source_kind") == "broader_local_raw"
+    )
+    datasets_with_broader_local_raw_available = sorted(
+        dataset_name
+        for dataset_name, selection in raw_selection.items()
+        if bool(selection.get("broader_raw_files_available"))
+    )
+    datasets_using_seeded_sample_fallback = sorted(
+        dataset_name
+        for dataset_name, selection in raw_selection.items()
+        if bool(selection.get("used_seeded_sample_fallback"))
+    )
+    selected_input_profile = _classify_selected_input_profile(
+        dataset_overview=dataset_overview,
+    )
     return {
         "datasets": raw_selection,
-        "dataset_overview": {
-            dataset_name: _build_raw_dataset_overview(selection)
-            for dataset_name, selection in raw_selection.items()
-        },
+        "dataset_overview": dataset_overview,
+        "selected_input_profile": selected_input_profile,
+        "uses_only_seeded_sample_inputs": bool(dataset_overview)
+        and not datasets_using_broader_local_raw_inputs,
+        "uses_any_broader_local_raw_inputs": bool(datasets_using_broader_local_raw_inputs),
+        "datasets_using_seeded_sample_inputs": datasets_using_seeded_sample_inputs,
+        "datasets_using_broader_local_raw_inputs": datasets_using_broader_local_raw_inputs,
+        "datasets_with_broader_local_raw_available": datasets_with_broader_local_raw_available,
+        "datasets_using_seeded_sample_fallback": datasets_using_seeded_sample_fallback,
         "broader_local_raw_available": broader_local_raw_available,
+        "broader_local_raw_available_on_disk": broader_local_raw_available,
         "seeded_sample_fallback_used": seeded_sample_fallback_used,
+        "seeded_sample_fallback_used_in_run": seeded_sample_fallback_used,
     }
+
+
+def _classify_selected_input_profile(
+    *,
+    dataset_overview: dict[str, dict[str, Any]],
+) -> str:
+    """Describe the raw-input mix actually selected for the current run."""
+    if not dataset_overview:
+        return "no_selection_recorded"
+
+    uses_seeded_inputs = any(
+        bool(overview.get("selected_seeded_sample_input"))
+        for overview in dataset_overview.values()
+    )
+    uses_broader_inputs = any(
+        bool(overview.get("selected_broader_local_raw_input"))
+        for overview in dataset_overview.values()
+    )
+    if uses_seeded_inputs and uses_broader_inputs:
+        return "mixed_selected_inputs"
+    if uses_broader_inputs:
+        return "broader_local_raw_only"
+    return "seeded_sample_only"
 
 
 def _build_raw_dataset_overview(selection: dict[str, Any]) -> dict[str, Any]:
     """Build a compact raw-source overview for one ingestion-stage dataset."""
     selected_file_details = selection.get("selected_file_details", [])
+    selected_source_kind = selection.get("selected_source_kind")
     return {
-        "selected_source_kind": selection.get("selected_source_kind"),
+        "selected_source_kind": selected_source_kind,
+        "selected_seeded_sample_input": selected_source_kind in _SEEDED_SELECTION_KINDS,
+        "selected_broader_local_raw_input": selected_source_kind == "broader_local_raw",
         "selected_file_count": int(selection.get("selected_file_count", 0) or 0),
         "selected_file_names": [
             str(detail.get("file_name"))
@@ -67,7 +130,13 @@ def _build_raw_dataset_overview(selection: dict[str, Any]) -> dict[str, Any]:
             selection.get("available_non_sample_file_count", 0) or 0
         ),
         "broader_raw_files_available": bool(selection.get("broader_raw_files_available")),
+        "broader_local_raw_available_on_disk": bool(
+            selection.get("broader_raw_files_available")
+        ),
         "used_seeded_sample_fallback": bool(selection.get("used_seeded_sample_fallback")),
+        "seeded_sample_fallback_used_in_run": bool(
+            selection.get("used_seeded_sample_fallback")
+        ),
         "observed_total_row_count": int(selection.get("observed_total_row_count", 0) or 0),
         "observed_date_columns": [
             str(column) for column in selection.get("observed_date_columns", [])

@@ -242,8 +242,63 @@ def _model_test_predictions_fixture() -> pd.DataFrame:
 
 
 def _coverage_summary_fixture(project_config) -> dict[str, object]:
+    return _coverage_summary_fixture_with_raw_selection(
+        project_config,
+        execution_mode="seeded",
+        prices_selection={
+            "selected_source_kind": "seeded_sample_fallback",
+            "broader_raw_files_available": False,
+            "used_seeded_sample_fallback": True,
+            "available_non_sample_file_count": 0,
+            "available_sample_file_count": 1,
+            "selected_file_name": "prices_daily_sample.csv",
+            "observed_total_row_count": 120,
+            "observed_date_columns": ["date"],
+            "observed_min_date": "2024-01-02",
+            "observed_max_date": "2024-03-29",
+        },
+        fundamentals_selection={
+            "selected_source_kind": "seeded_sample_fallback",
+            "broader_raw_files_available": False,
+            "used_seeded_sample_fallback": True,
+            "available_non_sample_file_count": 0,
+            "available_sample_file_count": 1,
+            "selected_file_name": "fundamentals_quarterly_sample.csv",
+            "observed_total_row_count": 60,
+            "observed_date_columns": ["report_date"],
+            "observed_min_date": "2023-09-30",
+            "observed_max_date": "2024-03-31",
+        },
+        benchmarks_selection={
+            "selected_source_kind": "seeded_sample_fallback",
+            "broader_raw_files_available": False,
+            "used_seeded_sample_fallback": True,
+            "available_non_sample_file_count": 0,
+            "available_sample_file_count": 1,
+            "selected_file_name": "benchmarks_daily_sample.csv",
+            "observed_total_row_count": 45,
+            "observed_date_columns": ["date"],
+            "observed_min_date": "2024-01-02",
+            "observed_max_date": "2024-03-29",
+        },
+    )
+
+
+def _coverage_summary_fixture_with_raw_selection(
+    project_config,
+    *,
+    execution_mode: str,
+    prices_selection: dict[str, object],
+    fundamentals_selection: dict[str, object],
+    benchmarks_selection: dict[str, object],
+) -> dict[str, object]:
+    coverage_project_config = (
+        project_config
+        if project_config.execution.mode_name == execution_mode
+        else load_project_config(execution_mode=execution_mode)
+    )
     return build_stage_coverage_summary(
-        project_config=project_config,
+        project_config=coverage_project_config,
         prices_qc_summary={
             "dataset_name": "prices_monthly",
             "row_count": 60,
@@ -252,19 +307,23 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
             "min_date": "2024-01-31",
             "max_date": "2024-03-31",
             "raw_file_selection": {
-                "selected_source_kind": "seeded_sample_fallback",
-                "broader_raw_files_available": False,
-                "used_seeded_sample_fallback": True,
+                "selected_source_kind": prices_selection["selected_source_kind"],
+                "broader_raw_files_available": prices_selection["broader_raw_files_available"],
+                "used_seeded_sample_fallback": prices_selection["used_seeded_sample_fallback"],
                 "selected_file_count": 1,
+                "available_sample_file_count": prices_selection["available_sample_file_count"],
+                "available_non_sample_file_count": prices_selection[
+                    "available_non_sample_file_count"
+                ],
                 "selected_file_details": [
                     {
-                        "file_name": "prices_daily_sample.csv",
+                        "file_name": prices_selection["selected_file_name"],
                     }
                 ],
-                "observed_total_row_count": 120,
-                "observed_date_columns": ["date"],
-                "observed_min_date": "2024-01-02",
-                "observed_max_date": "2024-03-29",
+                "observed_total_row_count": prices_selection["observed_total_row_count"],
+                "observed_date_columns": prices_selection["observed_date_columns"],
+                "observed_min_date": prices_selection["observed_min_date"],
+                "observed_max_date": prices_selection["observed_max_date"],
             },
         },
         fundamentals_qc_summary={
@@ -275,19 +334,29 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
             "min_date": "2024-01-31",
             "max_date": "2024-03-31",
             "raw_file_selection": {
-                "selected_source_kind": "seeded_sample_fallback",
-                "broader_raw_files_available": False,
-                "used_seeded_sample_fallback": True,
+                "selected_source_kind": fundamentals_selection["selected_source_kind"],
+                "broader_raw_files_available": fundamentals_selection[
+                    "broader_raw_files_available"
+                ],
+                "used_seeded_sample_fallback": fundamentals_selection[
+                    "used_seeded_sample_fallback"
+                ],
                 "selected_file_count": 1,
+                "available_sample_file_count": fundamentals_selection[
+                    "available_sample_file_count"
+                ],
+                "available_non_sample_file_count": fundamentals_selection[
+                    "available_non_sample_file_count"
+                ],
                 "selected_file_details": [
                     {
-                        "file_name": "fundamentals_quarterly_sample.csv",
+                        "file_name": fundamentals_selection["selected_file_name"],
                     }
                 ],
-                "observed_total_row_count": 60,
-                "observed_date_columns": ["report_date"],
-                "observed_min_date": "2023-09-30",
-                "observed_max_date": "2024-03-31",
+                "observed_total_row_count": fundamentals_selection["observed_total_row_count"],
+                "observed_date_columns": fundamentals_selection["observed_date_columns"],
+                "observed_min_date": fundamentals_selection["observed_min_date"],
+                "observed_max_date": fundamentals_selection["observed_max_date"],
             },
         },
         benchmarks_qc_summary={
@@ -298,19 +367,29 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
             "min_date": "2024-01-31",
             "max_date": "2024-03-31",
             "raw_file_selection": {
-                "selected_source_kind": "seeded_sample_fallback",
-                "broader_raw_files_available": False,
-                "used_seeded_sample_fallback": True,
+                "selected_source_kind": benchmarks_selection["selected_source_kind"],
+                "broader_raw_files_available": benchmarks_selection[
+                    "broader_raw_files_available"
+                ],
+                "used_seeded_sample_fallback": benchmarks_selection[
+                    "used_seeded_sample_fallback"
+                ],
                 "selected_file_count": 1,
+                "available_sample_file_count": benchmarks_selection[
+                    "available_sample_file_count"
+                ],
+                "available_non_sample_file_count": benchmarks_selection[
+                    "available_non_sample_file_count"
+                ],
                 "selected_file_details": [
                     {
-                        "file_name": "benchmarks_daily_sample.csv",
+                        "file_name": benchmarks_selection["selected_file_name"],
                     }
                 ],
-                "observed_total_row_count": 45,
-                "observed_date_columns": ["date"],
-                "observed_min_date": "2024-01-02",
-                "observed_max_date": "2024-03-29",
+                "observed_total_row_count": benchmarks_selection["observed_total_row_count"],
+                "observed_date_columns": benchmarks_selection["observed_date_columns"],
+                "observed_min_date": benchmarks_selection["observed_min_date"],
+                "observed_max_date": benchmarks_selection["observed_max_date"],
             },
         },
         panel_qc_summary={
@@ -372,6 +451,70 @@ def _coverage_summary_fixture(project_config) -> dict[str, object]:
     )
 
 
+def test_stage_coverage_distinguishes_seeded_selection_from_broader_local_availability() -> None:
+    """Coverage summaries should separate on-disk raw availability from run-selected inputs."""
+    coverage_summary = _coverage_summary_fixture_with_raw_selection(
+        load_project_config(),
+        execution_mode="seeded",
+        prices_selection={
+            "selected_source_kind": "seeded_sample",
+            "broader_raw_files_available": False,
+            "used_seeded_sample_fallback": False,
+            "available_non_sample_file_count": 0,
+            "available_sample_file_count": 1,
+            "selected_file_name": "prices_daily_sample.csv",
+            "observed_total_row_count": 120,
+            "observed_date_columns": ["date"],
+            "observed_min_date": "2024-01-02",
+            "observed_max_date": "2024-03-29",
+        },
+        fundamentals_selection={
+            "selected_source_kind": "seeded_sample",
+            "broader_raw_files_available": True,
+            "used_seeded_sample_fallback": False,
+            "available_non_sample_file_count": 1,
+            "available_sample_file_count": 1,
+            "selected_file_name": "fundamentals_quarterly_sample.csv",
+            "observed_total_row_count": 60,
+            "observed_date_columns": ["report_date"],
+            "observed_min_date": "2023-09-30",
+            "observed_max_date": "2024-03-31",
+        },
+        benchmarks_selection={
+            "selected_source_kind": "seeded_sample",
+            "broader_raw_files_available": False,
+            "used_seeded_sample_fallback": False,
+            "available_non_sample_file_count": 0,
+            "available_sample_file_count": 1,
+            "selected_file_name": "benchmarks_daily_sample.csv",
+            "observed_total_row_count": 45,
+            "observed_date_columns": ["date"],
+            "observed_min_date": "2024-01-02",
+            "observed_max_date": "2024-03-29",
+        },
+    )
+
+    raw_selection = coverage_summary["raw_data_selection"]
+    assert raw_selection["selected_input_profile"] == "seeded_sample_only"
+    assert raw_selection["uses_only_seeded_sample_inputs"] is True
+    assert raw_selection["uses_any_broader_local_raw_inputs"] is False
+    assert raw_selection["broader_local_raw_available_on_disk"] is True
+    assert raw_selection["seeded_sample_fallback_used_in_run"] is False
+    assert raw_selection["datasets_with_broader_local_raw_available"] == ["fundamentals_monthly"]
+    assert raw_selection["datasets_using_seeded_sample_inputs"] == [
+        "benchmarks_monthly",
+        "fundamentals_monthly",
+        "prices_monthly",
+    ]
+    assert raw_selection["datasets_using_broader_local_raw_inputs"] == []
+    assert raw_selection["dataset_overview"]["fundamentals_monthly"][
+        "selected_seeded_sample_input"
+    ] is True
+    assert raw_selection["dataset_overview"]["fundamentals_monthly"][
+        "selected_broader_local_raw_input"
+    ] is False
+
+
 def test_build_evaluation_summary_includes_benchmark_comparison() -> None:
     """Evaluation summaries should include benchmark-aware comparisons and caveats."""
     project_config = load_project_config()
@@ -429,11 +572,86 @@ def test_render_strategy_report_outputs_key_sections() -> None:
     assert "# Strategy Report" in report
     assert "## Portfolio Summary" in report
     assert "## Coverage Audit" in report
+    assert "Raw inputs selected for this run" in report
     assert "Raw dataset provenance `prices_monthly`" in report
+    assert "selected input `seeded_sample_fallback`" in report
     assert "prices_daily_sample.csv" in report
     assert "## Evidence Context" in report
     assert "## Benchmark Comparison" in report
     assert "## Bias Caveats" in report
+
+
+def test_render_strategy_report_clarifies_seeded_run_when_broader_raw_exists() -> None:
+    """Seeded reports should state clearly when broader files exist but were not selected."""
+    project_config = load_project_config(execution_mode="seeded")
+    signal_config = load_signal_pipeline_config()
+    backtest_config = load_backtest_pipeline_config()
+    summary = build_evaluation_summary(
+        project_config=project_config,
+        signal_config=signal_config,
+        backtest_config=backtest_config,
+        backtest_summary=_backtest_summary_fixture(),
+        portfolio_returns=_portfolio_returns_fixture(),
+        performance_by_period=_performance_by_period_fixture(),
+        risk_metrics_summary=_risk_metrics_summary_fixture(),
+        stage_coverage=_coverage_summary_fixture_with_raw_selection(
+            project_config,
+            execution_mode="seeded",
+            prices_selection={
+                "selected_source_kind": "seeded_sample",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": False,
+                "available_non_sample_file_count": 0,
+                "available_sample_file_count": 1,
+                "selected_file_name": "prices_daily_sample.csv",
+                "observed_total_row_count": 120,
+                "observed_date_columns": ["date"],
+                "observed_min_date": "2024-01-02",
+                "observed_max_date": "2024-03-29",
+            },
+            fundamentals_selection={
+                "selected_source_kind": "seeded_sample",
+                "broader_raw_files_available": True,
+                "used_seeded_sample_fallback": False,
+                "available_non_sample_file_count": 1,
+                "available_sample_file_count": 1,
+                "selected_file_name": "fundamentals_quarterly_sample.csv",
+                "observed_total_row_count": 60,
+                "observed_date_columns": ["report_date"],
+                "observed_min_date": "2023-09-30",
+                "observed_max_date": "2024-03-31",
+            },
+            benchmarks_selection={
+                "selected_source_kind": "seeded_sample",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": False,
+                "available_non_sample_file_count": 0,
+                "available_sample_file_count": 1,
+                "selected_file_name": "benchmarks_daily_sample.csv",
+                "observed_total_row_count": 45,
+                "observed_date_columns": ["date"],
+                "observed_min_date": "2024-01-02",
+                "observed_max_date": "2024-03-29",
+            },
+        ),
+    )
+
+    report = render_strategy_report(
+        summary,
+        strategy_report_path="outputs/reports/strategy_report.md",
+        registry_path="outputs/reports/experiment_registry.jsonl",
+    )
+
+    assert "This run used only seeded sample inputs: `True`" in report
+    assert "Broader local raw files present somewhere on disk: `True`" in report
+    assert (
+        "Note: Broader local raw files were present on disk for `fundamentals_monthly`, "
+        "but this run still selected seeded sample inputs only."
+    ) in report
+    assert (
+        "Raw dataset provenance `fundamentals_monthly`: selected input `seeded_sample`, "
+        "broader local raw on disk `True`"
+    ) in report
 
 
 def test_build_model_evaluation_summary_includes_model_diagnostics() -> None:
@@ -509,6 +727,78 @@ def test_render_model_strategy_report_outputs_key_sections() -> None:
     assert "## Coverage Audit" in report
     assert "## Evidence Context" in report
     assert "## Benchmark Comparison" in report
+
+
+def test_render_model_strategy_report_clarifies_seeded_run_when_broader_raw_exists() -> None:
+    """Model-aware reports should keep seeded selection distinct from broader local availability."""
+    project_config = load_project_config(execution_mode="seeded")
+    model_config = load_model_pipeline_config()
+    backtest_config = load_backtest_pipeline_config()
+    summary = build_model_evaluation_summary(
+        project_config=project_config,
+        model_config=model_config,
+        backtest_config=backtest_config,
+        model_metadata=_model_metadata_fixture(),
+        model_backtest_summary=_model_backtest_summary_fixture(),
+        portfolio_returns=_model_portfolio_returns_fixture(),
+        performance_by_period=_model_performance_by_period_fixture(),
+        deterministic_performance_by_period=_deterministic_overlap_performance_fixture(),
+        risk_metrics_summary=_risk_metrics_summary_fixture(),
+        test_predictions=_model_test_predictions_fixture(),
+        stage_coverage=_coverage_summary_fixture_with_raw_selection(
+            project_config,
+            execution_mode="seeded",
+            prices_selection={
+                "selected_source_kind": "seeded_sample",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": False,
+                "available_non_sample_file_count": 0,
+                "available_sample_file_count": 1,
+                "selected_file_name": "prices_daily_sample.csv",
+                "observed_total_row_count": 120,
+                "observed_date_columns": ["date"],
+                "observed_min_date": "2024-01-02",
+                "observed_max_date": "2024-03-29",
+            },
+            fundamentals_selection={
+                "selected_source_kind": "seeded_sample",
+                "broader_raw_files_available": True,
+                "used_seeded_sample_fallback": False,
+                "available_non_sample_file_count": 1,
+                "available_sample_file_count": 1,
+                "selected_file_name": "fundamentals_quarterly_sample.csv",
+                "observed_total_row_count": 60,
+                "observed_date_columns": ["report_date"],
+                "observed_min_date": "2023-09-30",
+                "observed_max_date": "2024-03-31",
+            },
+            benchmarks_selection={
+                "selected_source_kind": "seeded_sample",
+                "broader_raw_files_available": False,
+                "used_seeded_sample_fallback": False,
+                "available_non_sample_file_count": 0,
+                "available_sample_file_count": 1,
+                "selected_file_name": "benchmarks_daily_sample.csv",
+                "observed_total_row_count": 45,
+                "observed_date_columns": ["date"],
+                "observed_min_date": "2024-01-02",
+                "observed_max_date": "2024-03-29",
+            },
+        ),
+    )
+
+    report = render_model_strategy_report(
+        summary,
+        strategy_report_path="outputs/reports/model_strategy_report.md",
+        registry_path="outputs/reports/experiment_registry.jsonl",
+    )
+
+    assert "Raw inputs selected for this run: `seeded sample only`" in report
+    assert "Datasets with broader local raw files on disk: `fundamentals_monthly`" in report
+    assert (
+        "Note: Broader local raw files were present on disk for `fundamentals_monthly`, "
+        "but this run still selected seeded sample inputs only."
+    ) in report
 
 
 def test_build_experiment_record_and_append_jsonl() -> None:
@@ -639,5 +929,15 @@ def test_build_run_summary_artifact_captures_stage_coverage() -> None:
             "fundamentals_monthly"
         ]["observed_date_columns"]
         == ["report_date"]
+    )
+    assert (
+        run_summary["coverage_summary"]["raw_data_selection"]["selected_input_profile"]
+        == "seeded_sample_only"
+    )
+    assert (
+        run_summary["coverage_summary"]["raw_data_selection"][
+            "uses_only_seeded_sample_inputs"
+        ]
+        is True
     )
     assert run_summary["evidence_context"]["coverage_evidence_level"] == "insufficient_segment_history"

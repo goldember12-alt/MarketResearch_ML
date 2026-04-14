@@ -28,8 +28,11 @@ def _format_raw_dataset_overview(dataset_name: str, dataset_overview: dict[str, 
         ", ".join(str(name) for name in observed_date_columns) if observed_date_columns else "n/a"
     )
     return (
-        f"Raw dataset provenance `{dataset_name}`: source "
-        f"`{dataset_overview.get('selected_source_kind')}`, files "
+        f"Raw dataset provenance `{dataset_name}`: selected input "
+        f"`{dataset_overview.get('selected_source_kind')}`, broader local raw on disk "
+        f"`{dataset_overview.get('broader_local_raw_available_on_disk')}`, "
+        f"research-scale fallback triggered "
+        f"`{dataset_overview.get('seeded_sample_fallback_used_in_run')}`, files "
         f"`{dataset_overview.get('selected_file_count')}`, raw rows "
         f"`{dataset_overview.get('observed_total_row_count')}`, raw date columns "
         f"`{observed_date_columns_text}`, raw span "
@@ -37,6 +40,52 @@ def _format_raw_dataset_overview(dataset_name: str, dataset_overview: dict[str, 
         f"`{dataset_overview.get('observed_max_date')}`, selected files "
         f"`{selected_files_text}`"
     )
+
+
+def _format_selected_input_profile(profile: Any) -> str:
+    """Convert the run-level raw-input profile into clearer report text."""
+    profile_map = {
+        "seeded_sample_only": "seeded sample only",
+        "broader_local_raw_only": "broader local raw only",
+        "mixed_selected_inputs": "mixed seeded sample and broader local raw",
+        "no_selection_recorded": "no raw selection recorded",
+    }
+    return profile_map.get(str(profile), str(profile))
+
+
+def _format_dataset_list(dataset_names: list[Any]) -> str:
+    """Render a dataset-name list compactly for markdown."""
+    if not dataset_names:
+        return "none"
+    return ", ".join(f"`{dataset_name}`" for dataset_name in dataset_names)
+
+
+def _build_raw_selection_note(raw_data_selection: dict[str, Any]) -> str | None:
+    """Render a short note that separates on-disk availability from run-selected inputs."""
+    broader_datasets = raw_data_selection.get("datasets_with_broader_local_raw_available", [])
+    selected_seeded = raw_data_selection.get("uses_only_seeded_sample_inputs")
+    selected_broader = raw_data_selection.get("uses_any_broader_local_raw_inputs")
+    fallback_datasets = raw_data_selection.get("datasets_using_seeded_sample_fallback", [])
+
+    if selected_seeded and broader_datasets:
+        return (
+            "Broader local raw files were present on disk for "
+            f"{_format_dataset_list(broader_datasets)}, but this run still selected seeded "
+            "sample inputs only."
+        )
+    if fallback_datasets:
+        return (
+            "This run triggered research-scale seeded fallback for "
+            f"{_format_dataset_list(fallback_datasets)} because broader local raw files were "
+            "not selected for those datasets."
+        )
+    if selected_broader and raw_data_selection.get("datasets_using_seeded_sample_inputs"):
+        return (
+            "This run used a mixed raw-input selection across datasets: "
+            f"seeded sample for {_format_dataset_list(raw_data_selection.get('datasets_using_seeded_sample_inputs', []))} "
+            f"and broader local raw for {_format_dataset_list(raw_data_selection.get('datasets_using_broader_local_raw_inputs', []))}."
+        )
+    return None
 
 
 def _render_fold_diagnostics(fold_diagnostics: dict[str, Any]) -> list[str]:
@@ -142,9 +191,16 @@ def _render_coverage_summary(coverage_summary: dict[str, Any]) -> list[str]:
     lines = [
         "## Coverage Audit",
         f"- Execution mode: `{coverage_summary.get('execution_mode')}`",
-        f"- Broader local raw data available: `{raw_data_selection.get('broader_local_raw_available')}`",
-        f"- Seeded sample fallback used: `{raw_data_selection.get('seeded_sample_fallback_used')}`",
+        f"- Raw inputs selected for this run: `{_format_selected_input_profile(raw_data_selection.get('selected_input_profile'))}`",
+        f"- This run used only seeded sample inputs: `{raw_data_selection.get('uses_only_seeded_sample_inputs')}`",
+        f"- This run used any broader local raw inputs: `{raw_data_selection.get('uses_any_broader_local_raw_inputs')}`",
+        f"- Broader local raw files present somewhere on disk: `{raw_data_selection.get('broader_local_raw_available_on_disk', raw_data_selection.get('broader_local_raw_available'))}`",
+        f"- Datasets with broader local raw files on disk: {_format_dataset_list(raw_data_selection.get('datasets_with_broader_local_raw_available', []))}",
+        f"- Research-scale seeded fallback triggered in this run: `{raw_data_selection.get('seeded_sample_fallback_used_in_run', raw_data_selection.get('seeded_sample_fallback_used'))}`",
     ]
+    raw_selection_note = _build_raw_selection_note(raw_data_selection)
+    if raw_selection_note:
+        lines.append(f"- Note: {raw_selection_note}")
     for dataset_name, dataset_overview in raw_data_selection.get("dataset_overview", {}).items():
         lines.append("- " + _format_raw_dataset_overview(dataset_name, dataset_overview))
     for stage_name, stage_summary in coverage_summary.get("stages", {}).items():

@@ -36,6 +36,45 @@ FUNDAMENTALS_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _first_non_null(series: pd.Series):
+    """Return the first non-null value from a series, or pd.NA if absent."""
+    non_null = series.dropna()
+    if non_null.empty:
+        return pd.NA
+    return non_null.iloc[0]
+
+
+def _collapse_duplicate_fundamental_months(frame: pd.DataFrame) -> pd.DataFrame:
+    """Collapse same-ticker same-month fundamentals into one best-effort canonical row."""
+    duplicate_key_columns = ["ticker", "fundamentals_source_date"]
+    if frame.empty or not frame.duplicated(duplicate_key_columns).any():
+        return frame
+
+    value_columns = [column for column in frame.columns if column not in duplicate_key_columns]
+    prioritized = frame.copy()
+    prioritized["_non_null_value_count"] = prioritized[value_columns].notna().sum(axis=1)
+    prioritized = prioritized.sort_values(
+        ["ticker", "fundamentals_source_date", "_non_null_value_count"],
+        ascending=[True, True, False],
+        kind="stable",
+    )
+
+    collapsed_rows: list[dict[str, object]] = []
+    for (ticker, fundamentals_source_date), group in prioritized.groupby(
+        duplicate_key_columns, sort=False
+    ):
+        row: dict[str, object] = {
+            "ticker": ticker,
+            "fundamentals_source_date": fundamentals_source_date,
+        }
+        for column in value_columns:
+            row[column] = _first_non_null(group[column])
+        collapsed_rows.append(row)
+
+    collapsed = pd.DataFrame(collapsed_rows)
+    return collapsed.sort_values(duplicate_key_columns).reset_index(drop=True)
+
+
 def standardize_fundamentals_raw(
     raw_frame: pd.DataFrame,
     *,
@@ -84,6 +123,7 @@ def standardize_fundamentals_raw(
     standardized["fundamentals_source_date"] = normalize_month_end(
         standardized["fundamentals_source_date"]
     )
+    standardized = _collapse_duplicate_fundamental_months(standardized)
     standardized["fundamentals_effective_date"] = (
         standardized["fundamentals_source_date"]
         + pd.offsets.MonthEnd(config.processing.fundamentals_effective_lag_months)
@@ -143,6 +183,12 @@ def build_fundamentals_monthly(
         merged_frames.append(merged_ticker)
 
     merged = pd.concat(merged_frames, ignore_index=True)
+    merged["fundamentals_source_date"] = pd.to_datetime(
+        merged["fundamentals_source_date"], errors="coerce"
+    )
+    merged["fundamentals_effective_date"] = pd.to_datetime(
+        merged["fundamentals_effective_date"], errors="coerce"
+    )
 
     stale_mask = (
         merged["fundamentals_effective_date"].notna()

@@ -359,6 +359,9 @@ def map_companyfacts_to_quarterly_fundamentals(
     form_columns = [column for column in fundamentals.columns if column.endswith("_form")]
     ordered_columns.extend(sorted(concept_columns))
     ordered_columns.extend(sorted(form_columns))
+    for column in ordered_columns:
+        if column not in fundamentals.columns:
+            fundamentals[column] = pd.NA
     return fundamentals[ordered_columns].sort_values("report_date").reset_index(drop=True)
 
 
